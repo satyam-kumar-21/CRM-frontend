@@ -215,13 +215,7 @@ export default function WorkspaceLoginPage() {
                 )}
               </div>
 
-              {/* Security Policy Notice */}
-              <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-xs text-slate-400 flex items-center gap-2.5">
-                <KeyRound className="h-4 w-4 text-teal-400 shrink-0" />
-                <span>
-                  Forgot your password? Contact your <strong>Company Admin</strong> to reset it.
-                </span>
-              </div>
+             
 
               <button
                 type="submit"

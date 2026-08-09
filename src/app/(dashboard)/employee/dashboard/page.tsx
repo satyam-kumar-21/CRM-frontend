@@ -8,6 +8,7 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { CompanyAdminSidebar } from '../../company-admin/dashboard/components/CompanyAdminSidebar';
 import { ChatSection } from '../../company-admin/dashboard/components/workspaceChat';
 import { OverviewSection } from '../../company-admin/dashboard/components/OverviewSection';
+import { WorkspaceNotificationWatcher } from '../../company-admin/dashboard/components/WorkspaceNotificationWatcher';
 import type { ChatFilter, IEmployee, IGroupChannel, NavSection } from '../../company-admin/dashboard/types';
 
 const employeeNavigation = [
@@ -19,7 +20,7 @@ const employeeNavigation = [
 export default function EmployeeDashboardPage() {
   const [activeSection, setActiveSection] = useState<NavSection>(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('section') === 'chat' ? 'chat' : 'overview');
   const [activeChatFilter, setActiveChatFilter] = useState<ChatFilter>('all');
-  const [selectedChatId, setSelectedChatId] = useState('');
+  const [selectedChatId, setSelectedChatId] = useState(() => typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('conversation') || '' : '');
   const [messageInput, setMessageInput] = useState('');
   const { data, isLoading } = useQuery<ICompanyDashboard>({ queryKey: ['employeeDashboard'], queryFn: companyService.getDashboard });
   const employee = data?.employee;
@@ -39,6 +40,7 @@ export default function EmployeeDashboardPage() {
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-100"><p className="text-sm text-slate-400">Loading Enterprise Dashboard...</p></div>;
 
   return <ProtectedRoute roles={['EMPLOYEE', 'HR', 'MANAGER', 'TEAM_LEAD', 'SALES', 'TECH_SUPPORT', 'IT', 'INTERN']}><div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased"><div className="grid min-h-screen lg:grid-cols-[280px_1fr]"><CompanyAdminSidebar companyName={data?.company.name} userName={employee?.name || 'Employee'} userRole={employee?.role || 'Employee'} canOpenSettings={false} navigationMenu={employeeNavigation} activeSection={activeSection} setActiveSection={setActiveSection} /><main className="flex flex-col h-screen overflow-hidden bg-slate-950">
+    <WorkspaceNotificationWatcher dashboardPath="/employee/dashboard" />
     {activeSection === 'overview' && employee && <OverviewSection employees={[]} employee={employee} isEmployee setActiveSection={setActiveSection} onAddEmployee={() => undefined} />}
     {activeSection === 'chat' && <ChatSection groups={groups} employees={employees} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={messageInput} setMessageInput={setMessageInput} onSendMessage={sendMessage} />}
     {activeSection === 'profile' && employee && <EmployeeProfile employee={employee} />}

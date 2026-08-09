@@ -17,6 +17,7 @@ import { LeadsSection, SalesSection } from './components/SalesLeadsSections';
 import { OverviewSection } from './components/OverviewSection';
 import { SalesAnalyticsModal } from './components/SalesAnalyticsModal';
 import { SettingsSection } from './components/SettingsSection';
+import { WorkspaceNotificationWatcher } from './components/WorkspaceNotificationWatcher';
 import { mapCompanyEmployee } from './employeeMapper';
 import type { ChatFilter, IEmployee, IGroupChannel, NavSection, TimeframeFilter } from './types';
 
@@ -30,7 +31,7 @@ export default function CompanyAdminDashboardPage() {
   const [selectedEmployeeForSales, setSelectedEmployeeForSales] = useState<IEmployee | null>(null);
   const [salesTimeframeFilter, setSalesTimeframeFilter] = useState<TimeframeFilter>('month');
   const [activeChatFilter, setActiveChatFilter] = useState<ChatFilter>('all');
-  const [selectedChatId, setSelectedChatId] = useState('');
+  const [selectedChatId, setSelectedChatId] = useState(() => typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('conversation') || '' : '');
   const [chatMessageInput, setChatMessageInput] = useState('');
   const [showAddEmployeeModal, setShowAddEmployeeModal] = useState(false);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
@@ -235,6 +236,7 @@ export default function CompanyAdminDashboardPage() {
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-100"><p className="text-sm text-slate-400">Loading Enterprise Dashboard...</p></div>;
 
   return <ProtectedRoute roles={['COMPANY_ADMIN']}><div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased"><div className="grid min-h-screen lg:grid-cols-[280px_1fr]"><CompanyAdminSidebar companyName={dashboard?.company?.name} navigationMenu={navigationMenu} activeSection={activeSection} setActiveSection={setActiveSection} /><main className="flex flex-col h-screen overflow-hidden bg-slate-950">
+    <WorkspaceNotificationWatcher dashboardPath="/company-admin/dashboard" />
     {activeSection === 'overview' && <OverviewSection employees={employeesList} setActiveSection={setActiveSection} onAddEmployee={() => setShowAddEmployeeModal(true)} />}
     {activeSection === 'chat' && <ChatSection groups={groupsList} employees={employeesList} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={chatMessageInput} setMessageInput={setChatMessageInput} onSendMessage={handleSendChatMessage} onCreateGroup={() => { setEditingGroup(null); setNewGroupName(''); setNewGroupDesc(''); setNewGroupPrivacy('public'); setNewGroupMemberIds([]); setShowCreateGroupModal(true); }} />}
     {activeSection === 'employees' && <EmployeesSection employees={employeesList} filteredEmployees={filteredEmployees} searchQuery={searchQuery} setSearchQuery={setSearchQuery} employeeRoleFilter={employeeRoleFilter} setEmployeeRoleFilter={setEmployeeRoleFilter} onSelectEmployee={setSelectedEmployeeForSales} onAddEmployee={handleOpenNewEmployeeModal} onEditEmployee={handleEditEmployee} onToggleBlock={handleToggleEmployeeBlock} onDeleteEmployee={handleDeleteEmployee} />}

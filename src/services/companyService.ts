@@ -20,6 +20,8 @@ export interface ICompanyMessage {
   updatedAt?: string;
   isMine?: boolean;
   isSeen?: boolean;
+  isEdited?: boolean;
+  conversationId?: string;
 }
 
 export interface ICompanyDashboard {

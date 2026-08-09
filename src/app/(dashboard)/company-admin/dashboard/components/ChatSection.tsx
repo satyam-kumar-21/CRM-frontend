@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { Check, CheckCheck, Hash, MoreVertical, Pencil, Plus, Send, Trash2, UserRound, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { io } from 'socket.io-client';
 import { companyService, ICompanyMessage } from '@/services/companyService';
 import type { ChatFilter, IEmployee, IGroupChannel } from '../types';
 
@@ -22,11 +23,11 @@ type ChatSectionProps = {
 export function ChatSection(props: ChatSectionProps) {
   const { groups, employees, activeFilter, setActiveFilter, selectedChatId, setSelectedChatId, messageInput, setMessageInput, onSendMessage, onCreateGroup } = props;
   const [messages, setMessages] = useState<ICompanyMessage[]>([]);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const previousCount = useRef(0);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const selectedEmployee = employees.find((employee) => employee.id === selectedChatId);
   const selectedGroup = groups.find((group) => group.id === selectedChatId);
   const title = selectedEmployee?.name || selectedGroup?.name || 'Active Conversation';
@@ -47,21 +48,38 @@ export function ChatSection(props: ChatSectionProps) {
     };
     previousCount.current = 0;
     void load();
-    const onResume = () => { if (!document.hidden && document.hasFocus()) void load(); };
-    const timer = window.setInterval(() => void load(), 15000);
-    window.addEventListener('focus', onResume);
-    window.addEventListener('visibilitychange', onResume);
+    const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000', {
+      auth: { token: window.localStorage.getItem('companyAccessToken') || undefined },
+      withCredentials: true,
+    });
+    socket.on('connect', () => socket.emit('conversation:join', selectedChatId, (allowed: boolean) => { if (allowed) socket.emit('conversation:read', selectedChatId); }));
+    socket.on('message:new', (message: ICompanyMessage) => {
+      if (!active || !message?._id) return;
+      setMessages((current) => current.some((item) => item._id === message._id) ? current : [...current, message]);
+      if (!message.isMine) socket.emit('conversation:read', selectedChatId);
+    });
+    socket.on('message:updated', (message: ICompanyMessage) => {
+      setMessages((current) => current.map((item) => item._id === message._id ? { ...item, ...message } : item));
+    });
+    socket.on('message:deleted', (message: { id: string }) => {
+      setMessages((current) => current.filter((item) => item._id !== message.id));
+    });
+    socket.on('message:read', (receipt: { messageIds: string[] }) => {
+      setMessages((current) => current.map((message) => receipt.messageIds.includes(message._id) ? { ...message, isSeen: true } : message));
+    });
     return () => {
       active = false;
-      window.clearInterval(timer);
-      window.removeEventListener('focus', onResume);
-      window.removeEventListener('visibilitychange', onResume);
+      socket.emit('conversation:leave', selectedChatId);
+      socket.disconnect();
     };
-  }, [selectedChatId, refreshKey]);
+  }, [selectedChatId]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages]);
 
   const sendMessage = async () => {
     await onSendMessage();
-    setRefreshKey((value) => value + 1);
   };
 
   const editMessage = async (messageId: string) => {
@@ -104,12 +122,12 @@ export function ChatSection(props: ChatSectionProps) {
           <div className={`relative max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${message.isMine ? 'bg-indigo-600/80 text-white' : 'bg-slate-900 text-slate-200'}`}>
             {editingId === message._id ? <div className="flex gap-2"><input autoFocus value={editingText} onChange={(event) => setEditingText(event.target.value)} className="rounded bg-slate-950 px-2 py-1 text-white" /><button aria-label="Save message" onClick={() => void editMessage(message._id)}><Check className="h-4 w-4" /></button><button aria-label="Cancel editing" onClick={() => setEditingId(null)}><X className="h-4 w-4" /></button></div> : <>
               <p>{message.content}</p>
-              <time className="mt-1 flex items-center gap-1 text-[10px] text-slate-400"><span>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>{message.updatedAt && message.updatedAt !== message.createdAt && <span>· edited</span>}{message.isMine && (message.isSeen ? <CheckCheck className="h-3.5 w-3.5 text-sky-300" aria-label="Seen" /> : <Check className="h-3.5 w-3.5 text-slate-300" aria-label="Sent" />)}</time>
-              <p className="mt-0.5 text-[10px] text-slate-400">{message.senderName || 'Workspace member'}</p>
+              <time className="mt-1 flex items-center gap-1 text-[10px] text-slate-400"><span>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>{message.isEdited && <span>· edited</span>}{message.isMine && (message.isSeen ? <CheckCheck className="h-3.5 w-3.5 text-sky-300" aria-label="Seen" /> : <Check className="h-3.5 w-3.5 text-slate-300" aria-label="Sent" />)}</time>
+              {!message.isMine && <p className="mt-0.5 text-[10px] text-slate-400">{message.senderName || 'Workspace member'}</p>}
               {message.isMine && <div className="absolute -right-2 -top-2"><button aria-label="Message options" title="Message options" onClick={() => setOpenMenuId((current) => current === message._id ? null : message._id)} className="rounded-full bg-slate-700 p-1 text-slate-200 shadow hover:bg-slate-600"><MoreVertical className="h-3.5 w-3.5" /></button>{openMenuId === message._id && <div className="absolute right-0 top-7 z-10 w-28 overflow-hidden rounded-lg border border-slate-700 bg-slate-900 py-1 text-xs shadow-xl"><button className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-200 hover:bg-slate-800" onClick={() => { setEditingId(message._id); setEditingText(message.content); setOpenMenuId(null); }}><Pencil className="h-3.5 w-3.5" /> Edit</button><button className="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-300 hover:bg-slate-800" onClick={() => { setOpenMenuId(null); void deleteMessage(message._id); }}><Trash2 className="h-3.5 w-3.5" /> Delete</button></div>}</div>}
             </>}
           </div>
-        </div>) : <p className="text-center text-sm text-slate-500">No messages yet. Start the conversation.</p>}
+        </div>) : <p className="text-center text-sm text-slate-500">No messages yet. Start the conversation.</p>}<div ref={bottomRef} />
       </div>
       <div className="flex gap-2 border-t border-slate-800 bg-slate-900/40 p-4"><input value={messageInput} onChange={(event) => setMessageInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void sendMessage(); }} placeholder={`Message ${title}`} className="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white outline-none focus:border-indigo-500" disabled={!selectedChatId} /><button aria-label="Send message" onClick={() => void sendMessage()} className="rounded-xl bg-indigo-600 px-4 text-white hover:bg-indigo-500" disabled={!selectedChatId || !messageInput.trim()}><Send className="h-4 w-4" /></button></div>
     </section>
