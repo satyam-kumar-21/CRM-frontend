@@ -1,4 +1,4 @@
-export type NavSection = 'overview' | 'chat' | 'employees' | 'groups' | 'sales' | 'leads' | 'billing' | 'settings' | 'profile';
+export type NavSection = 'overview' | 'chat' | 'employees' | 'groups' | 'sales' | 'leads' | 'attendance' | 'salary' | 'leave' | 'announcements' | 'billing' | 'settings' | 'profile';
 export type TimeframeFilter = 'today' | 'month' | 'year' | 'all';
 export type ChatFilter = 'all' | 'groups' | 'employees';
 
@@ -38,6 +38,8 @@ export interface IEmployee {
   leadsAssigned?: number;
   conversionRate: number;
   salesHistory: ISaleRecord[];
+  latestChatAt?: string | null;
+  unreadCount: number;
 }
 
 export interface IGroupChannel {
@@ -48,6 +50,8 @@ export interface IGroupChannel {
   members?: string[];
   privacy: 'public' | 'private';
   createdDate: string;
+  latestChatAt?: string | null;
+  unreadCount: number;
 }
 
 export interface IDepartment {

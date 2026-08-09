@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Enterprise CRM Platform',
-  description: 'Multi-Tenant SaaS CRM Platform',
+  description: 'Company CRM workspace',
 };
 
 export default function RootLayout({

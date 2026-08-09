@@ -7,6 +7,11 @@ export interface ICompanyGroup {
   privacy: 'public' | 'private';
   members?: string[];
   createdAt: string;
+  latestChatAt?: string | null;
+  unreadCount?: number;
+  salaryAmount?: number;
+  salaryMonth?: string;
+  salaryCredited?: boolean;
 }
 
 export interface ICompanyMessage {
@@ -51,7 +56,7 @@ export interface ICompanyDashboard {
     recentMessages: number;
   };
   groups: ICompanyGroup[];
-  chatEmployees?: Array<Pick<ICompanyEmployee, '_id' | 'employeeId' | 'name' | 'email' | 'role'>>;
+  chatEmployees?: Array<Pick<ICompanyEmployee, '_id' | 'employeeId' | 'name' | 'email' | 'role'> & { latestChatAt?: string | null; unreadCount?: number }>;
   recentMessages: ICompanyMessage[];
 }
 
@@ -71,6 +76,10 @@ export interface ICompanyEmployee {
   isSuspended: boolean;
   createdAt: string;
   latestChatAt?: string | null;
+  unreadCount?: number;
+  salaryAmount?: number;
+  salaryMonth?: string;
+  salaryCredited?: boolean;
 }
 
 export interface IEmployeeLoginPayload {
@@ -88,6 +97,7 @@ export interface ICompanyLead {
   connected: 'yes' | 'no';
   connectedBy: string;
   isSale: 'yes' | 'no';
+  createdAt?: string;
 }
 
 export interface ICompanySale {
@@ -102,6 +112,18 @@ export interface ICompanySale {
   saleDate: string;
 }
 
+export interface IAttendanceRecord {
+  _id: string;
+  employeeId: { _id: string; name: string; employeeId: string; role: string } | string;
+  date: string;
+  checkIn?: string;
+  checkOut?: string;
+  status: string;
+  workHours: number;
+}
+export interface IAnnouncement { _id: string; title: string; content: string; createdAt: string; targetRoles: string[]; }
+export interface ILeaveRecord { _id: string; employeeId: { name: string; employeeId: string; role: string } | string; leaveType: string; startDate: string; endDate: string; reason: string; status: string; }
+
 export const companyService = {
   login: async (credentials: { employeeId?: string; email?: string; password: string }) => {
     const res = await api.post('/company/login', credentials);
@@ -115,6 +137,8 @@ export const companyService = {
   // Employee Login (use same /company/login endpoint)
   employeeLogin: async (credentials: IEmployeeLoginPayload) => {
     const res = await api.post('/company/login', credentials);
+    const accessToken = res.data?.data?.accessToken || res.data?.accessToken;
+    if (typeof window !== 'undefined' && accessToken) window.localStorage.setItem('companyAccessToken', accessToken);
     return res.data;
   },
 
@@ -138,7 +162,7 @@ export const companyService = {
     return res.data;
   },
 
-  updateEmployee: async (employeeId: string, data: { name?: string; email?: string; phone?: string; role?: string; password?: string; monthlySalesTarget?: number; remoteTarget?: number }) => {
+  updateEmployee: async (employeeId: string, data: { name?: string; email?: string; phone?: string; role?: string; password?: string; monthlySalesTarget?: number; remoteTarget?: number; salaryAmount?: number; salaryMonth?: string; salaryCredited?: boolean }) => {
     const res = await api.patch(`/company/employees/${employeeId}`, data);
     return res.data.data;
   },
@@ -184,4 +208,11 @@ export const companyService = {
   createSale: async (data: Omit<ICompanySale, '_id'>): Promise<ICompanySale> => (await api.post('/company/sales', data)).data.data,
   updateSale: async (id: string, data: Omit<ICompanySale, '_id'>): Promise<ICompanySale> => (await api.patch(`/company/sales/${id}`, data)).data.data,
   deleteSale: async (id: string) => (await api.delete(`/company/sales/${id}`)).data.data,
+  getAttendance: async (filters: { employeeId?: string; from?: string; to?: string } = {}): Promise<IAttendanceRecord[]> => (await api.get('/company/attendance', { params: filters })).data.data,
+  getAttendanceEmployees: async (): Promise<Array<{ _id: string; name: string; employeeId: string; role: string }>> => (await api.get('/company/attendance/employees')).data.data,
+  getAnnouncements: async (): Promise<IAnnouncement[]> => (await api.get('/company/announcements')).data.data,
+  createAnnouncement: async (data: { title: string; content: string; targetRoles?: string[] }): Promise<IAnnouncement> => (await api.post('/company/announcements', data)).data.data,
+  deleteAnnouncement: async (id: string) => (await api.delete(`/company/announcements/${id}`)).data.data,
+  getLeave: async (month?: string): Promise<ILeaveRecord[]> => (await api.get('/company/leave', { params: { month } })).data.data,
+  updateLeaveStatus: async (id: string, status: string): Promise<ILeaveRecord> => (await api.patch(`/company/leave/${id}/status`, { status })).data.data,
 };

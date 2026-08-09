@@ -2,18 +2,27 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, MessageSquare, UserCircle } from 'lucide-react';
-import { companyService, ICompanyDashboard } from '@/services/companyService';
+import { Activity, Bell, CalendarCheck, MessageSquare, TrendingUp, UserCircle, UserPlus } from 'lucide-react';
+import { companyService, ICompanyDashboard, ICompanyMessage } from '@/services/companyService';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { CompanyAdminSidebar } from '../../company-admin/dashboard/components/CompanyAdminSidebar';
 import { ChatSection } from '../../company-admin/dashboard/components/workspaceChat';
-import { OverviewSection } from '../../company-admin/dashboard/components/OverviewSection';
+import { EmployeeOverviewSection } from '../../company-admin/dashboard/components/EmployeeOverviewSection';
+import { LeadsSection, SalesSection } from '../../company-admin/dashboard/components/SalesLeadsSections';
 import { WorkspaceNotificationWatcher } from '../../company-admin/dashboard/components/WorkspaceNotificationWatcher';
+import { AttendanceSection } from '../../company-admin/dashboard/components/AttendanceSection';
+import { AnnouncementsSection } from '../../company-admin/dashboard/components/AnnouncementsSection';
+import { LeaveSection } from '../../company-admin/dashboard/components/LeaveSection';
 import type { ChatFilter, IEmployee, IGroupChannel, NavSection } from '../../company-admin/dashboard/types';
 
 const employeeNavigation = [
   { id: 'overview' as NavSection, label: 'Overview', icon: Activity },
   { id: 'chat' as NavSection, label: 'Workspace Chat', icon: MessageSquare, badge: 'Live' },
+  { id: 'leads' as NavSection, label: 'My Leads', icon: UserPlus },
+  { id: 'sales' as NavSection, label: 'My Sales', icon: TrendingUp },
+  { id: 'attendance' as NavSection, label: 'My Attendance', icon: CalendarCheck },
+  { id: 'announcements' as NavSection, label: 'Announcements', icon: Bell },
+  { id: 'leave' as NavSection, label: 'My Leave', icon: CalendarCheck },
   { id: 'profile' as NavSection, label: 'Your Profile', icon: UserCircle },
 ];
 
@@ -22,10 +31,20 @@ export default function EmployeeDashboardPage() {
   const [activeChatFilter, setActiveChatFilter] = useState<ChatFilter>('all');
   const [selectedChatId, setSelectedChatId] = useState(() => typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('conversation') || '' : '');
   const [messageInput, setMessageInput] = useState('');
+  const [chatActivity, setChatActivity] = useState<Record<string, { latestChatAt: string; unreadCount: number }>>({});
   const { data, isLoading } = useQuery<ICompanyDashboard>({ queryKey: ['employeeDashboard'], queryFn: companyService.getDashboard });
   const employee = data?.employee;
-  const groups: IGroupChannel[] = useMemo(() => (data?.groups || []).map((group) => ({ id: group._id, name: group.name, description: group.description, membersCount: group.members?.length || 0, privacy: group.privacy, createdDate: new Date(group.createdAt).toLocaleDateString() })), [data?.groups]);
-  const employees: IEmployee[] = useMemo(() => (data?.chatEmployees || []).map((item) => ({ id: item._id, employeeId: item.employeeId, name: item.name, email: item.email || '', role: item.role, status: 'active', isSuspended: false, joinedDate: '', avatarBg: 'from-indigo-500 to-cyan-500', salesTarget: { monthlyTarget: 0, monthlyAchieved: 0, yearlyTarget: 0, yearlyAchieved: 0, hourlyAchievedToday: 0 }, dealsClosed: 0, conversionRate: 0, salesHistory: [] })), [data?.chatEmployees]);
+  const groups: IGroupChannel[] = useMemo(() => (data?.groups || []).map((group) => ({ id: group._id, name: group.name, description: group.description, membersCount: group.members?.length || 0, privacy: group.privacy, createdDate: new Date(group.createdAt).toLocaleDateString(), latestChatAt: chatActivity[group._id]?.latestChatAt || group.latestChatAt, unreadCount: chatActivity[group._id]?.unreadCount ?? group.unreadCount ?? 0 })), [data?.groups, chatActivity]);
+  const employees: IEmployee[] = useMemo(() => (data?.chatEmployees || []).filter((item) => item._id !== data?.employee?._id).map((item) => ({ id: item._id, employeeId: item.employeeId, name: item.name, email: item.email || '', role: item.role, status: 'active', isSuspended: false, joinedDate: '', avatarBg: 'from-indigo-500 to-cyan-500', salesTarget: { monthlyTarget: 0, monthlyAchieved: 0, yearlyTarget: 0, yearlyAchieved: 0, hourlyAchievedToday: 0 }, dealsClosed: 0, conversionRate: 0, salesHistory: [], latestChatAt: chatActivity[item._id]?.latestChatAt || item.latestChatAt, unreadCount: chatActivity[item._id]?.unreadCount ?? item.unreadCount ?? 0 })), [data?.chatEmployees, data?.employee?._id, chatActivity]);
+
+  const handleIncomingChatMessage = (message: ICompanyMessage) => {
+    const conversationId = message.conversationId || message.groupId;
+    if (!conversationId || message.isMine || conversationId === selectedChatId) return;
+    setChatActivity((current) => ({ ...current, [conversationId]: { latestChatAt: message.createdAt, unreadCount: (current[conversationId]?.unreadCount || 0) + 1 } }));
+  };
+  const handleConversationRead = (conversationId: string) => {
+    setChatActivity((current) => ({ ...current, [conversationId]: { latestChatAt: current[conversationId]?.latestChatAt || new Date().toISOString(), unreadCount: 0 } }));
+  };
 
   useEffect(() => {
     if (!selectedChatId && (groups[0]?.id || employees[0]?.id)) setSelectedChatId(groups[0]?.id || employees[0].id);
@@ -40,9 +59,14 @@ export default function EmployeeDashboardPage() {
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-100"><p className="text-sm text-slate-400">Loading Enterprise Dashboard...</p></div>;
 
   return <ProtectedRoute roles={['EMPLOYEE', 'HR', 'MANAGER', 'TEAM_LEAD', 'SALES', 'TECH_SUPPORT', 'IT', 'INTERN']}><div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased"><div className="grid min-h-screen lg:grid-cols-[280px_1fr]"><CompanyAdminSidebar companyName={data?.company.name} userName={employee?.name || 'Employee'} userRole={employee?.role || 'Employee'} canOpenSettings={false} navigationMenu={employeeNavigation} activeSection={activeSection} setActiveSection={setActiveSection} /><main className="flex flex-col h-screen overflow-hidden bg-slate-950">
-    <WorkspaceNotificationWatcher dashboardPath="/employee/dashboard" />
-    {activeSection === 'overview' && employee && <OverviewSection employees={[]} employee={employee} isEmployee setActiveSection={setActiveSection} onAddEmployee={() => undefined} />}
-    {activeSection === 'chat' && <ChatSection groups={groups} employees={employees} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={messageInput} setMessageInput={setMessageInput} onSendMessage={sendMessage} />}
+    <WorkspaceNotificationWatcher dashboardPath="/employee/dashboard" onMessage={handleIncomingChatMessage} />
+    {activeSection === 'overview' && employee && <EmployeeOverviewSection employee={employee} setActiveSection={setActiveSection} />}
+    {activeSection === 'chat' && <ChatSection groups={groups} employees={employees} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={messageInput} setMessageInput={setMessageInput} onSendMessage={sendMessage} onConversationRead={handleConversationRead} />}
+    {activeSection === 'leads' && <div className="[&_button]:hidden"><LeadsSection readOnly /></div>}
+    {activeSection === 'sales' && <div className="[&_button]:hidden"><SalesSection readOnly /></div>}
+    {activeSection === 'attendance' && <AttendanceSection readOnly />}
+    {activeSection === 'announcements' && <AnnouncementsSection readOnly />}
+    {activeSection === 'leave' && <LeaveSection readOnly />}
     {activeSection === 'profile' && employee && <EmployeeProfile employee={employee} />}
   </main></div></div></ProtectedRoute>;
 }

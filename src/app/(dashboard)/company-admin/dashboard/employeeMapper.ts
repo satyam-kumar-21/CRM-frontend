@@ -24,4 +24,6 @@ export const mapCompanyEmployee = (employee: CompanyEmployeeWithId): IEmployee =
   leadsAssigned: employee.leadsAssigned || 0,
   conversionRate: employee.leadsAssigned ? Math.round((employee.leadsConverted / employee.leadsAssigned) * 100) : 0,
   salesHistory: [],
+  latestChatAt: employee.latestChatAt,
+  unreadCount: employee.unreadCount || 0,
 });

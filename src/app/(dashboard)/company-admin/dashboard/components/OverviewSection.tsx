@@ -4,9 +4,9 @@ import { CheckCircle2, DollarSign, MessageSquare, Target, TrendingUp, UserPlus, 
 import type { Dispatch, SetStateAction } from 'react';
 import type { IEmployee, NavSection } from '../types';
 
-type OverviewSectionProps = { employees: IEmployee[]; setActiveSection: Dispatch<SetStateAction<NavSection>>; onAddEmployee: () => void; employee?: { name: string; monthlySalesTarget: number; monthlySalesAchieved: number; leadsAssigned: number; leadsConverted: number; role: string }; isEmployee?: boolean };
+type OverviewSectionProps = { employees: IEmployee[]; setActiveSection: Dispatch<SetStateAction<NavSection>>; onAddEmployee: () => void; employee?: { name: string; monthlySalesTarget: number; monthlySalesAchieved: number; leadsAssigned: number; leadsConverted: number; role: string }; companyName?: string; isEmployee?: boolean };
 
-export function OverviewSection({ employees, setActiveSection, onAddEmployee, employee, isEmployee = false }: OverviewSectionProps) {
+export function OverviewSection({ employees, setActiveSection, onAddEmployee, employee, companyName, isEmployee = false }: OverviewSectionProps) {
   const target = employee?.monthlySalesTarget || 0;
   const achieved = employee?.monthlySalesAchieved || 0;
   const progress = target ? Math.min(100, Math.round((achieved / target) * 100)) : 0;

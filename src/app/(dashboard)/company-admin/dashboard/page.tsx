@@ -2,22 +2,27 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, CreditCard, Hash, Layers, MessageSquare, Settings, TrendingUp, UserPlus, Users } from 'lucide-react';
+import { Activity, Bell, CalendarCheck, Hash, MessageSquare, Settings, TrendingUp, UserPlus, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { companyService, ICompanyDashboard, ICompanyEmployee } from '@/services/companyService';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { CompanyAdminSidebar, type CompanyAdminNavItem } from './components/CompanyAdminSidebar';
 import { AddEmployeeModal } from './components/AddEmployeeModal';
-import { BillingSection } from './components/BillingSection';
+import { SalaryLeaveSection } from './components/SalaryLeaveSection';
+import { AnnouncementsSection } from './components/AnnouncementsSection';
+import { LeaveSection } from './components/LeaveSection';
+import { CompanyOverviewSection } from './components/CompanyOverviewSection';
 import { ChatSection } from './components/workspaceChat';
 import { CreateGroupModal } from './components/CreateGroupModal';
 import { EmployeesSection } from './components/EmployeesSection';
 import { GroupsSection } from './components/GroupsSection';
 import { LeadsSection, SalesSection } from './components/SalesLeadsSections';
+import { AdminSalesSection } from './components/AdminSalesSection';
 import { OverviewSection } from './components/OverviewSection';
 import { SalesAnalyticsModal } from './components/SalesAnalyticsModal';
 import { SettingsSection } from './components/SettingsSection';
 import { WorkspaceNotificationWatcher } from './components/WorkspaceNotificationWatcher';
+import { AttendanceSection } from './components/AttendanceSection';
 import { mapCompanyEmployee } from './employeeMapper';
 import type { ChatFilter, IEmployee, IGroupChannel, NavSection, TimeframeFilter } from './types';
 
@@ -52,18 +57,30 @@ export default function CompanyAdminDashboardPage() {
   const [newGroupMemberIds, setNewGroupMemberIds] = useState<string[]>([]);
   const [editingGroup, setEditingGroup] = useState<IGroupChannel | null>(null);
 
-  const { data: dashboard, isLoading } = useQuery<ICompanyDashboard>({ queryKey: ['companyDashboard'], queryFn: companyService?.getDashboard ? companyService.getDashboard : async () => ({ company: { name: 'Techno Sky Solutions' } } as any), retry: false });
+  const { data: dashboard, isLoading } = useQuery<ICompanyDashboard>({ queryKey: ['companyDashboard'], queryFn: companyService.getDashboard, retry: false });
   const { data: companyEmployees } = useQuery<ICompanyEmployee[]>({ queryKey: ['companyEmployees'], queryFn: companyService.getEmployees, retry: false });
+
+  const handleIncomingChatMessage = (message: import('@/services/companyService').ICompanyMessage) => {
+    const conversationId = message.conversationId || message.groupId;
+    if (!conversationId || message.isMine || conversationId === selectedChatId) return;
+    const activityAt = message.createdAt;
+    setEmployeesList((current) => current.map((employee) => employee.id === conversationId ? { ...employee, latestChatAt: activityAt, unreadCount: employee.unreadCount + 1 } : employee));
+    setGroupsList((current) => current.map((group) => group.id === conversationId ? { ...group, latestChatAt: activityAt, unreadCount: group.unreadCount + 1 } : group));
+  };
+  const handleConversationRead = (conversationId: string) => {
+    setEmployeesList((current) => current.map((employee) => employee.id === conversationId ? { ...employee, unreadCount: 0 } : employee));
+    setGroupsList((current) => current.map((group) => group.id === conversationId ? { ...group, unreadCount: 0 } : group));
+  };
 
   useEffect(() => {
     if (companyEmployees) {
       const sortedEmployees = [...companyEmployees].sort((left, right) => new Date(right.latestChatAt || 0).getTime() - new Date(left.latestChatAt || 0).getTime());
-      setEmployeesList(sortedEmployees.map(mapCompanyEmployee));
+      setEmployeesList(sortedEmployees.filter((employee) => employee._id !== dashboard?.employee?._id).map(mapCompanyEmployee));
     }
-  }, [companyEmployees]);
+  }, [companyEmployees, dashboard?.employee?._id]);
   useEffect(() => {
     if (dashboard?.groups?.length) {
-      setGroupsList(dashboard.groups.map((group) => ({ id: group._id, name: group.name, description: group.description, members: group.members, membersCount: group.members?.length || 0, privacy: group.privacy, createdDate: new Date(group.createdAt).toLocaleDateString() })));
+      setGroupsList(dashboard.groups.map((group) => ({ id: group._id, name: group.name, description: group.description, members: group.members, membersCount: group.members?.length || 0, privacy: group.privacy, createdDate: new Date(group.createdAt).toLocaleDateString(), latestChatAt: group.latestChatAt, unreadCount: group.unreadCount || 0 })));
     }
   }, [dashboard]);
   useEffect(() => {
@@ -78,8 +95,8 @@ export default function CompanyAdminDashboardPage() {
   const navigationMenu: CompanyAdminNavItem[] = [
     { id: 'overview', label: 'Overview', icon: Activity }, { id: 'chat', label: 'Workspace Chat', icon: MessageSquare, badge: 'Live' },
     { id: 'employees', label: 'Employees Directory', icon: Users, count: employeesList.length }, { id: 'groups', label: 'Channels & Groups', icon: Hash, count: groupsList.length },
-    { id: 'sales', label: 'Sales', icon: TrendingUp }, { id: 'leads', label: 'Leads', icon: UserPlus },
-    { id: 'billing', label: 'Billing & Plan', icon: CreditCard }, { id: 'settings', label: 'Company Settings', icon: Settings },
+    { id: 'leads', label: 'Leads', icon: UserPlus },{ id: 'sales', label: 'Sales', icon: TrendingUp }, { id: 'attendance', label: 'Attendance', icon: CalendarCheck }, { id: 'salary', label: 'Salary', icon: TrendingUp }, { id: 'leave', label: 'Leave', icon: CalendarCheck }, { id: 'announcements', label: 'Announcements', icon: Bell },
+    { id: 'settings', label: 'Company Settings', icon: Settings },
   ];
 
   const handleSendChatMessage = async () => {
@@ -146,7 +163,7 @@ export default function CompanyAdminDashboardPage() {
       const group = editingGroup
         ? await companyService.updateGroup(editingGroup.id, { name: newGroupName.trim(), description: newGroupDesc.trim(), privacy: newGroupPrivacy, memberIds: newGroupMemberIds })
         : await companyService.createGroup({ name: newGroupName.trim(), description: newGroupDesc.trim(), privacy: newGroupPrivacy, memberIds: newGroupMemberIds });
-      const mappedGroup = { id: group._id, name: group.name, description: group.description, members: group.members, membersCount: group.members?.length || 0, privacy: group.privacy, createdDate: new Date(group.createdAt).toLocaleDateString() };
+      const mappedGroup = { id: group._id, name: group.name, description: group.description, members: group.members, membersCount: group.members?.length || 0, privacy: group.privacy, createdDate: new Date(group.createdAt).toLocaleDateString(), latestChatAt: group.latestChatAt, unreadCount: group.unreadCount || 0 };
       setGroupsList((current) => editingGroup ? current.map((item) => item.id === editingGroup.id ? mappedGroup : item) : [mappedGroup, ...current]);
       setNewGroupName(''); setNewGroupDesc(''); setNewGroupPrivacy('public'); setNewGroupMemberIds([]); setShowCreateGroupModal(false);
       setEditingGroup(null);
@@ -236,15 +253,18 @@ export default function CompanyAdminDashboardPage() {
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-100"><p className="text-sm text-slate-400">Loading Enterprise Dashboard...</p></div>;
 
   return <ProtectedRoute roles={['COMPANY_ADMIN']}><div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased"><div className="grid min-h-screen lg:grid-cols-[280px_1fr]"><CompanyAdminSidebar companyName={dashboard?.company?.name} navigationMenu={navigationMenu} activeSection={activeSection} setActiveSection={setActiveSection} /><main className="flex flex-col h-screen overflow-hidden bg-slate-950">
-    <WorkspaceNotificationWatcher dashboardPath="/company-admin/dashboard" />
-    {activeSection === 'overview' && <OverviewSection employees={employeesList} setActiveSection={setActiveSection} onAddEmployee={() => setShowAddEmployeeModal(true)} />}
-    {activeSection === 'chat' && <ChatSection groups={groupsList} employees={employeesList} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={chatMessageInput} setMessageInput={setChatMessageInput} onSendMessage={handleSendChatMessage} onCreateGroup={() => { setEditingGroup(null); setNewGroupName(''); setNewGroupDesc(''); setNewGroupPrivacy('public'); setNewGroupMemberIds([]); setShowCreateGroupModal(true); }} />}
+    <WorkspaceNotificationWatcher dashboardPath="/company-admin/dashboard" onMessage={handleIncomingChatMessage} />
+    {activeSection === 'overview' && <CompanyOverviewSection employees={employeesList} companyName={dashboard?.company?.name} setActiveSection={setActiveSection} onAddEmployee={() => setShowAddEmployeeModal(true)} />}
+    {activeSection === 'chat' && <ChatSection groups={groupsList} employees={employeesList} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={chatMessageInput} setMessageInput={setChatMessageInput} onSendMessage={handleSendChatMessage} onConversationRead={handleConversationRead} onCreateGroup={() => { setEditingGroup(null); setNewGroupName(''); setNewGroupDesc(''); setNewGroupPrivacy('public'); setNewGroupMemberIds([]); setShowCreateGroupModal(true); }} />}
     {activeSection === 'employees' && <EmployeesSection employees={employeesList} filteredEmployees={filteredEmployees} searchQuery={searchQuery} setSearchQuery={setSearchQuery} employeeRoleFilter={employeeRoleFilter} setEmployeeRoleFilter={setEmployeeRoleFilter} onSelectEmployee={setSelectedEmployeeForSales} onAddEmployee={handleOpenNewEmployeeModal} onEditEmployee={handleEditEmployee} onToggleBlock={handleToggleEmployeeBlock} onDeleteEmployee={handleDeleteEmployee} />}
-    {activeSection === 'sales' && <SalesSection />}
+    {activeSection === 'sales' && <AdminSalesSection />}
     {activeSection === 'leads' && <LeadsSection />}
+    {activeSection === 'attendance' && <AttendanceSection />}
+    {activeSection === 'salary' && <SalaryLeaveSection />}
+    {activeSection === 'leave' && <LeaveSection />}
+    {activeSection === 'announcements' && <AnnouncementsSection />}
     {activeSection === 'groups' && <GroupsSection groups={groupsList} onCreateGroup={() => { setEditingGroup(null); setNewGroupName(''); setNewGroupDesc(''); setNewGroupPrivacy('public'); setNewGroupMemberIds([]); setShowCreateGroupModal(true); }} onEditGroup={handleEditGroup} onDeleteGroup={handleDeleteGroup} />}
     
-    {activeSection === 'billing' && <BillingSection />}
     {activeSection === 'settings' && <SettingsSection />}
   </main></div>
   {selectedEmployeeForSales && <SalesAnalyticsModal employee={selectedEmployeeForSales} timeframe={salesTimeframeFilter} setTimeframe={setSalesTimeframeFilter} onClose={() => setSelectedEmployeeForSales(null)} calculate={calculateSalesAnalytics} />}

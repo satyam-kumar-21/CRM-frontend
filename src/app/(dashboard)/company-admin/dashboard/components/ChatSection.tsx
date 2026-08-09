@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { Check, CheckCheck, Hash, MoreVertical, Pencil, Plus, Send, Trash2, UserRound, X } from 'lucide-react';
+import { Check, CheckCheck, Hash, MoreVertical, Pencil, Plus, Search, Send, Trash2, UserRound, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { io } from 'socket.io-client';
 import { companyService, ICompanyMessage } from '@/services/companyService';
@@ -18,19 +18,28 @@ type ChatSectionProps = {
   setMessageInput: Dispatch<SetStateAction<string>>;
   onSendMessage: () => void | Promise<void>;
   onCreateGroup?: () => void;
+  onConversationRead?: (conversationId: string) => void;
 };
 
 export function ChatSection(props: ChatSectionProps) {
-  const { groups, employees, activeFilter, setActiveFilter, selectedChatId, setSelectedChatId, messageInput, setMessageInput, onSendMessage, onCreateGroup } = props;
+  const { groups, employees, activeFilter, setActiveFilter, selectedChatId, setSelectedChatId, messageInput, setMessageInput, onSendMessage, onCreateGroup, onConversationRead } = props;
   const [messages, setMessages] = useState<ICompanyMessage[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [chatSearch, setChatSearch] = useState('');
   const previousCount = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const selectedEmployee = employees.find((employee) => employee.id === selectedChatId);
   const selectedGroup = groups.find((group) => group.id === selectedChatId);
   const title = selectedEmployee?.name || selectedGroup?.name || 'Active Conversation';
+  const query = chatSearch.trim().toLowerCase();
+  const sortedGroups = [...groups].filter((group) => group.name.toLowerCase().includes(query)).sort((left, right) => new Date(right.latestChatAt || 0).getTime() - new Date(left.latestChatAt || 0).getTime());
+  const sortedEmployees = [...employees].filter((employee) => `${employee.name} ${employee.role}`.toLowerCase().includes(query)).sort((left, right) => new Date(right.latestChatAt || 0).getTime() - new Date(left.latestChatAt || 0).getTime());
+  const conversations = [
+    ...sortedGroups.map((group) => ({ ...group, type: 'group' as const })),
+    ...sortedEmployees.map((employee) => ({ ...employee, type: 'employee' as const })),
+  ].filter((conversation) => activeFilter === 'all' || conversation.type === (activeFilter === 'groups' ? 'group' : 'employee')).sort((left, right) => new Date(right.latestChatAt || 0).getTime() - new Date(left.latestChatAt || 0).getTime());
 
   useEffect(() => {
     if (!selectedChatId) return;
@@ -52,7 +61,7 @@ export function ChatSection(props: ChatSectionProps) {
       auth: { token: window.localStorage.getItem('companyAccessToken') || undefined },
       withCredentials: true,
     });
-    socket.on('connect', () => socket.emit('conversation:join', selectedChatId, (allowed: boolean) => { if (allowed) socket.emit('conversation:read', selectedChatId); }));
+    socket.on('connect', () => socket.emit('conversation:join', selectedChatId, (allowed: boolean) => { if (allowed) { socket.emit('conversation:read', selectedChatId); onConversationRead?.(selectedChatId); } }));
     socket.on('message:new', (message: ICompanyMessage) => {
       if (!active || !message?._id) return;
       setMessages((current) => current.some((item) => item._id === message._id) ? current : [...current, message]);
@@ -108,11 +117,11 @@ export function ChatSection(props: ChatSectionProps) {
     <aside className="flex flex-col border-r border-slate-800/80 bg-slate-900/40">
       <div className="space-y-3 border-b border-slate-800/80 bg-slate-900/60 p-3.5">
         <div className="flex items-center justify-between"><h2 className="text-base font-bold text-white">Chat Workspace</h2>{onCreateGroup && <button aria-label="Create group" onClick={onCreateGroup} className="rounded-lg bg-indigo-600/20 p-1.5 text-indigo-400 hover:bg-indigo-600 hover:text-white"><Plus className="h-4 w-4" /></button>}</div>
+        <div className="flex items-center gap-2 rounded-lg border border-slate-700/80 bg-slate-950/60 px-2.5"><Search className="h-3.5 w-3.5 text-slate-500" /><input value={chatSearch} onChange={(event) => setChatSearch(event.target.value)} placeholder="Search chats" className="min-w-0 flex-1 bg-transparent py-2 text-xs text-white outline-none placeholder:text-slate-500" /></div>
         <div className="flex gap-1">{(['all', 'groups', 'employees'] as ChatFilter[]).map((filter) => <button key={filter} onClick={() => setActiveFilter(filter)} className={`rounded-full px-3 py-1 text-[11px] capitalize ${activeFilter === filter ? 'bg-indigo-600 text-white' : 'bg-slate-800/60 text-slate-400'}`}>{filter}</button>)}</div>
       </div>
       <div className="flex-1 divide-y divide-slate-800/40 overflow-y-auto">
-        {(activeFilter === 'all' || activeFilter === 'groups') && groups.map((group) => <button key={group.id} onClick={() => setSelectedChatId(group.id)} className={`flex w-full items-center gap-3 p-3.5 text-left ${selectedChatId === group.id ? 'border-l-4 border-indigo-500 bg-indigo-600/10' : 'hover:bg-slate-800/30'}`}><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white"><Hash className="h-5 w-5" /></div><span className="min-w-0 flex-1"><b className="block truncate text-xs text-slate-200">{group.name}</b><small className="text-[11px] text-slate-400">{group.description}</small></span></button>)}
-        {(activeFilter === 'all' || activeFilter === 'employees') && employees.map((employee) => <button key={employee.id} onClick={() => setSelectedChatId(employee.id)} className={`flex w-full items-center gap-3 p-3.5 text-left ${selectedChatId === employee.id ? 'border-l-4 border-indigo-500 bg-indigo-600/10' : 'hover:bg-slate-800/30'}`}><div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr ${employee.avatarBg} text-white`}><UserRound className="h-5 w-5" /></div><span className="min-w-0 flex-1"><b className="block truncate text-xs text-slate-200">{employee.name}</b><small className="text-[11px] text-slate-400">{employee.role}</small></span></button>)}
+        {conversations.map((conversation) => <button key={conversation.id} onClick={() => setSelectedChatId(conversation.id)} className={`flex w-full items-center gap-3 p-3.5 text-left ${selectedChatId === conversation.id ? 'border-l-4 border-indigo-500 bg-indigo-600/10' : 'hover:bg-slate-800/30'}`}><div className={`flex h-10 w-10 shrink-0 items-center justify-center ${conversation.type === 'group' ? 'rounded-xl bg-indigo-600' : `rounded-full bg-gradient-to-tr ${conversation.avatarBg}`} text-white`}>{conversation.type === 'group' ? <Hash className="h-5 w-5" /> : <UserRound className="h-5 w-5" />}</div><span className="min-w-0 flex-1"><b className="block truncate text-xs text-slate-200">{conversation.name}</b><small className="text-[11px] text-slate-400">{conversation.type === 'group' ? conversation.description : conversation.role}</small></span>{conversation.unreadCount > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-500 px-1.5 text-[10px] font-bold text-white">{conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}</span>}</button>)}
       </div>
     </aside>
     <section className="flex min-h-0 flex-col bg-slate-950">

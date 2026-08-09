@@ -17,7 +17,6 @@ export interface CompanyAdminNavItem {
 
 type CompanyAdminSidebarProps = {
   companyName?: string;
-  companyCode?: string;
   userName?: string;
   userRole?: string;
   canOpenSettings?: boolean;
@@ -28,7 +27,6 @@ type CompanyAdminSidebarProps = {
 
 export function CompanyAdminSidebar({
   companyName,
-  companyCode,
   userName = 'Company Admin',
   userRole = 'Workspace owner',
   canOpenSettings = true,
@@ -54,14 +52,7 @@ export function CompanyAdminSidebar({
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white shadow-lg shadow-indigo-500/20">
             <ShieldCheck className="h-5 w-5" />
           </div>
-          <div className="overflow-hidden">
-            <p className="text-[10px] font-semibold tracking-wider text-indigo-400 uppercase">Enterprise Portal</p>
-            <h2 className="truncate text-sm font-bold text-white">{companyName || 'Techno Sky Solutions'}</h2>
-          </div>
-        </div>
-        <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/40 p-2.5 text-xs flex justify-between items-center text-slate-400">
-          <span>Tenant ID: <strong className="text-slate-200 font-mono">{companyCode || 'TSS-8890'}</strong></span>
-          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" title="System Online" />
+          <div className="overflow-hidden"><p className="text-[10px] font-semibold tracking-wider text-indigo-400 uppercase">Company Portal</p><h2 className="truncate text-sm font-bold text-white">{companyName || 'Techno Sky Solutions'}</h2></div>
         </div>
       </div>
 

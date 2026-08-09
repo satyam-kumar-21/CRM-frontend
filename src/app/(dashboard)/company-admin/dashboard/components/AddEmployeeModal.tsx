@@ -50,7 +50,7 @@ export function AddEmployeeModal({
 
   const textFields = [
     { label: 'Full Name', value: name, setter: setName, type: 'text', placeholder: 'e.g. Rahul Verma' },
-    { label: 'Corporate Email (optional)', value: email, setter: setEmail, type: 'email', placeholder: 'e.g. rahul@technosky.com' },
+    { label: 'Corporate Email (optional)', value: email, setter: setEmail, type: 'email', placeholder: 'name@company.com' },
     { label: 'Phone Number', value: phone, setter: setPhone, type: 'tel', placeholder: '+91 98765 43210' },
     { label: 'Password', value: password, setter: setPassword, type: 'password', placeholder: 'At least 6 characters' },
   ];

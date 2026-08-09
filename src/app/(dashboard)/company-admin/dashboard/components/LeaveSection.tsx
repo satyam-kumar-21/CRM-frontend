@@ -1,0 +1,13 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { CalendarDays } from 'lucide-react';
+import { toast } from 'sonner';
+import { companyService, ILeaveRecord } from '@/services/companyService';
+
+export function LeaveSection({ readOnly = false }: { readOnly?: boolean }) {
+  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7)); const [records, setRecords] = useState<ILeaveRecord[]>([]);
+  useEffect(() => { companyService.getLeave(month).then(setRecords).catch(() => toast.error('Unable to load leave')); }, [month]);
+  const update = async (record: ILeaveRecord, status: string) => { try { const item = await companyService.updateLeaveStatus(record._id, status); setRecords((current) => current.map((entry) => entry._id === item._id ? item : entry)); } catch { toast.error('Unable to update leave'); } };
+  return <section className="min-h-full space-y-5 overflow-y-auto bg-slate-950 p-6 text-slate-100"><header className="flex items-center justify-between border-b border-slate-800 pb-4"><div><h1 className="flex items-center gap-2 text-2xl font-bold text-white"><CalendarDays className="h-6 w-6 text-amber-400" /> {readOnly ? 'My Leave' : 'Leave Management'}</h1><p className="text-sm text-slate-400">Leave records for the selected month.</p></div><label className="text-xs text-slate-400">Month & year<input type="month" value={month} onChange={(event) => setMonth(event.target.value)} className="ml-2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white" /></label></header><div className="overflow-x-auto rounded-xl border border-slate-800"><table className="w-full text-left text-xs text-slate-300"><thead className="bg-slate-900 text-slate-400"><tr><th className="p-3">Employee</th><th className="p-3">Type</th><th className="p-3">Start</th><th className="p-3">End</th><th className="p-3">Status</th>{!readOnly && <th className="p-3">Action</th>}</tr></thead><tbody className="divide-y divide-slate-800">{records.map((record) => <tr key={record._id}><td className="p-3 text-white">{typeof record.employeeId === 'string' ? record.employeeId : record.employeeId.name}</td><td className="p-3">{record.leaveType}</td><td className="p-3">{new Date(record.startDate).toLocaleDateString()}</td><td className="p-3">{new Date(record.endDate).toLocaleDateString()}</td><td className="p-3">{record.status}</td>{!readOnly && <td className="p-3"><button onClick={() => void update(record, record.status === 'APPROVED' ? 'REJECTED' : 'APPROVED')} className="rounded-lg bg-indigo-600 px-2 py-1 text-white">{record.status === 'APPROVED' ? 'Reject' : 'Approve'}</button></td>}</tr>)}</tbody></table></div></section>;
+}
