@@ -101,8 +101,9 @@ export default function CompanyAdminDashboardPage() {
 
   const handleSendChatMessage = async () => {
     if (!chatMessageInput.trim()) return;
-    await companyService.postConversationMessage(selectedChatId, { content: chatMessageInput.trim() });
+    const sentMessage = await companyService.postConversationMessage(selectedChatId, { content: chatMessageInput.trim() });
     setChatMessageInput('');
+    return sentMessage;
   };
 
   const handleAddEmployeeSubmit = async (event: React.FormEvent) => {

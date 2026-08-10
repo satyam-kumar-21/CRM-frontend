@@ -16,7 +16,7 @@ type ChatSectionProps = {
   setSelectedChatId: Dispatch<SetStateAction<string>>;
   messageInput: string;
   setMessageInput: Dispatch<SetStateAction<string>>;
-  onSendMessage: () => void | Promise<void>;
+  onSendMessage: () => ICompanyMessage | void | Promise<ICompanyMessage | void>;
   onCreateGroup?: () => void;
   onConversationRead?: (conversationId: string) => void;
 };
@@ -65,7 +65,10 @@ export function ChatSection(props: ChatSectionProps) {
     socket.on('message:new', (message: ICompanyMessage) => {
       if (!active || !message?._id) return;
       setMessages((current) => current.some((item) => item._id === message._id) ? current : [...current, message]);
-      if (!message.isMine) socket.emit('conversation:read', selectedChatId);
+      if (!message.isMine) {
+        socket.emit('conversation:read', selectedChatId);
+        onConversationRead?.(selectedChatId);
+      }
     });
     socket.on('message:updated', (message: ICompanyMessage) => {
       setMessages((current) => current.map((item) => item._id === message._id ? { ...item, ...message } : item));
@@ -88,7 +91,12 @@ export function ChatSection(props: ChatSectionProps) {
   }, [messages]);
 
   const sendMessage = async () => {
-    await onSendMessage();
+    const sentMessage = await onSendMessage();
+    if (sentMessage?.['_id']) {
+      setMessages((current) => current.some((message) => message._id === sentMessage._id)
+        ? current
+        : [...current, { ...sentMessage, isMine: true }]);
+    }
   };
 
   const editMessage = async (messageId: string) => {

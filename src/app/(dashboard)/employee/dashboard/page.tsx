@@ -52,8 +52,9 @@ export default function EmployeeDashboardPage() {
 
   const sendMessage = async () => {
     if (!selectedChatId || !messageInput.trim()) return;
-    await companyService.postConversationMessage(selectedChatId, { content: messageInput.trim() });
+    const sentMessage = await companyService.postConversationMessage(selectedChatId, { content: messageInput.trim() });
     setMessageInput('');
+    return sentMessage;
   };
 
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-100"><p className="text-sm text-slate-400">Loading Enterprise Dashboard...</p></div>;
