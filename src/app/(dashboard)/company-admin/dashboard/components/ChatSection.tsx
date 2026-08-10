@@ -130,7 +130,11 @@ export function ChatSection(props: ChatSectionProps) {
     setMessages((current) => [...current, optimisticMessage]);
 
     try {
-      const sentMessage = shortcutLead ? await onSendLead(shortcutLead) : await onSendMessage();
+      const sentMessage = shortcutLead
+        ? onSendLead
+          ? await onSendLead(shortcutLead)
+          : undefined
+        : await onSendMessage();
       if (sentMessage?._id) {
         setMessages((current) => [
           ...current.filter((message) => message._id !== optimisticId && message._id !== sentMessage._id),
