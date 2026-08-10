@@ -29,6 +29,19 @@ export interface ICompanyMessage {
   conversationId?: string;
 }
 
+export type LeadWorkflow = {
+  type: 'lead-workflow';
+  status: 'pending' | 'declined' | 'accepted' | 'connected' | 'sale';
+  lead: { name: string; country: string; system: string; contactNo: string; otherDetails: string };
+  leadId?: string;
+  acceptedBy?: string;
+  connected?: 'yes' | 'no';
+  isSale?: 'yes' | 'no';
+  saleAmount?: number;
+  paymentMethod?: 'Card' | 'Check' | 'Wire Transfer' | 'Cash' | 'Other';
+  closedBy?: string;
+};
+
 export interface ICompanyDashboard {
   employee: {
     _id: string;
@@ -98,6 +111,7 @@ export interface ICompanyLead {
   connectedBy: string;
   isSale: 'yes' | 'no';
   createdAt?: string;
+  workflowMessageId?: string;
 }
 
 export interface ICompanySale {

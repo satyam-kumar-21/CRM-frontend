@@ -84,8 +84,8 @@ export default function CompanyAdminDashboardPage() {
     }
   }, [dashboard]);
   useEffect(() => {
-    if (!selectedChatId && groupsList[0]?.id) setSelectedChatId(groupsList[0].id);
-  }, [groupsList, selectedChatId]);
+    if (!selectedChatId && (groupsList[0]?.id || employeesList[0]?.id)) setSelectedChatId(groupsList[0]?.id || employeesList[0].id);
+  }, [employeesList, groupsList, selectedChatId]);
 
   const filteredEmployees = useMemo(() => employeesList.filter((employee) => {
     const query = searchQuery.toLowerCase();
@@ -104,6 +104,9 @@ export default function CompanyAdminDashboardPage() {
     const sentMessage = await companyService.postConversationMessage(selectedChatId, { content: chatMessageInput.trim() });
     setChatMessageInput('');
     return sentMessage;
+  };
+  const handleSendLead = async (lead: { name: string; country: string; system: string; contactNo: string; otherDetails: string }) => {
+    return companyService.postConversationMessage(selectedChatId, { content: JSON.stringify({ type: 'lead-workflow', status: 'pending', lead }) });
   };
 
   const handleAddEmployeeSubmit = async (event: React.FormEvent) => {
@@ -256,7 +259,7 @@ export default function CompanyAdminDashboardPage() {
   return <ProtectedRoute roles={['COMPANY_ADMIN']}><div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased"><div className="grid min-h-screen lg:grid-cols-[280px_1fr]"><CompanyAdminSidebar companyName={dashboard?.company?.name} navigationMenu={navigationMenu} activeSection={activeSection} setActiveSection={setActiveSection} /><main className="flex flex-col h-screen overflow-hidden bg-slate-950">
     <WorkspaceNotificationWatcher dashboardPath="/company-admin/dashboard" onMessage={handleIncomingChatMessage} />
     {activeSection === 'overview' && <CompanyOverviewSection employees={employeesList} companyName={dashboard?.company?.name} setActiveSection={setActiveSection} onAddEmployee={() => setShowAddEmployeeModal(true)} />}
-    {activeSection === 'chat' && <ChatSection groups={groupsList} employees={employeesList} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={chatMessageInput} setMessageInput={setChatMessageInput} onSendMessage={handleSendChatMessage} onConversationRead={handleConversationRead} onCreateGroup={() => { setEditingGroup(null); setNewGroupName(''); setNewGroupDesc(''); setNewGroupPrivacy('public'); setNewGroupMemberIds([]); setShowCreateGroupModal(true); }} />}
+    {activeSection === 'chat' && <ChatSection groups={groupsList} employees={employeesList} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={chatMessageInput} setMessageInput={setChatMessageInput} onSendMessage={handleSendChatMessage} onSendLead={handleSendLead} currentUserName={dashboard?.employee?.name || 'Admin'} isAdmin onConversationRead={handleConversationRead} onCreateGroup={() => { setEditingGroup(null); setNewGroupName(''); setNewGroupDesc(''); setNewGroupPrivacy('public'); setNewGroupMemberIds([]); setShowCreateGroupModal(true); }} />}
     {activeSection === 'employees' && <EmployeesSection employees={employeesList} filteredEmployees={filteredEmployees} searchQuery={searchQuery} setSearchQuery={setSearchQuery} employeeRoleFilter={employeeRoleFilter} setEmployeeRoleFilter={setEmployeeRoleFilter} onSelectEmployee={setSelectedEmployeeForSales} onAddEmployee={handleOpenNewEmployeeModal} onEditEmployee={handleEditEmployee} onToggleBlock={handleToggleEmployeeBlock} onDeleteEmployee={handleDeleteEmployee} />}
     {activeSection === 'sales' && <AdminSalesSection />}
     {activeSection === 'leads' && <LeadsSection />}
