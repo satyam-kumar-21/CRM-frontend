@@ -196,6 +196,7 @@ export const companyService = {
   },
 
   getConversationMessages: async (conversationId: string): Promise<ICompanyMessage[]> => (await api.get(`/company/conversations/${conversationId}/messages`)).data.data,
+  markConversationRead: async (conversationId: string) => (await api.post(`/company/conversations/${conversationId}/read`)).data.data,
   postConversationMessage: async (conversationId: string, data: { content: string }): Promise<ICompanyMessage> => (await api.post(`/company/conversations/${conversationId}/messages`, data)).data.data,
   updateMessage: async (messageId: string, content: string): Promise<ICompanyMessage> => (await api.patch(`/company/messages/${messageId}`, { content })).data.data,
   deleteMessage: async (messageId: string) => (await api.delete(`/company/messages/${messageId}`)).data.data,

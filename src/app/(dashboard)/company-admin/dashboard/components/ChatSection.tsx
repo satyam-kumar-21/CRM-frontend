@@ -61,13 +61,18 @@ export function ChatSection(props: ChatSectionProps) {
       auth: { token: window.localStorage.getItem('companyAccessToken') || undefined },
       withCredentials: true,
     });
-    socket.on('connect', () => socket.emit('conversation:join', selectedChatId, (allowed: boolean) => { if (allowed) { socket.emit('conversation:read', selectedChatId); onConversationRead?.(selectedChatId); } }));
+    const markRead = () => {
+      socket.emit('conversation:read', selectedChatId);
+      void companyService.markConversationRead(selectedChatId).catch(() => undefined);
+      onConversationRead?.(selectedChatId);
+    };
+    const joinConversation = () => socket.emit('conversation:join', selectedChatId, (allowed: boolean) => { if (allowed) markRead(); });
+    socket.on('connect', joinConversation);
     socket.on('message:new', (message: ICompanyMessage) => {
       if (!active || !message?._id) return;
       setMessages((current) => current.some((item) => item._id === message._id) ? current : [...current, message]);
       if (!message.isMine) {
-        socket.emit('conversation:read', selectedChatId);
-        onConversationRead?.(selectedChatId);
+        markRead();
       }
     });
     socket.on('message:updated', (message: ICompanyMessage) => {
@@ -82,6 +87,7 @@ export function ChatSection(props: ChatSectionProps) {
     return () => {
       active = false;
       socket.emit('conversation:leave', selectedChatId);
+      socket.off('connect', joinConversation);
       socket.disconnect();
     };
   }, [selectedChatId]);
@@ -91,11 +97,31 @@ export function ChatSection(props: ChatSectionProps) {
   }, [messages]);
 
   const sendMessage = async () => {
-    const sentMessage = await onSendMessage();
-    if (sentMessage?.['_id']) {
-      setMessages((current) => current.some((message) => message._id === sentMessage._id)
-        ? current
-        : [...current, { ...sentMessage, isMine: true }]);
+    const optimisticContent = messageInput.trim();
+    if (!optimisticContent) return;
+    const optimisticId = `pending-${Date.now()}`;
+    const optimisticMessage: ICompanyMessage = {
+      _id: optimisticId,
+      senderId: 'pending',
+      content: optimisticContent,
+      createdAt: new Date().toISOString(),
+      isMine: true,
+      isSeen: false,
+      conversationId: selectedChatId,
+    };
+    setMessages((current) => [...current, optimisticMessage]);
+
+    try {
+      const sentMessage = await onSendMessage();
+      if (sentMessage?._id) {
+        setMessages((current) => [
+          ...current.filter((message) => message._id !== optimisticId && message._id !== sentMessage._id),
+          { ...sentMessage, isMine: true },
+        ]);
+      }
+    } catch (error: any) {
+      setMessages((current) => current.filter((message) => message._id !== optimisticId));
+      toast.error(error.response?.data?.message || 'Unable to send message');
     }
   };
 
