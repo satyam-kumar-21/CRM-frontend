@@ -77,6 +77,8 @@ export function ChatSection(props: ChatSectionProps) {
     socket.on('connect', joinConversation);
     socket.on('message:new', (message: ICompanyMessage) => {
       if (!active || !message?._id) return;
+      const messageConversationId = message.conversationId || message.groupId;
+      if (messageConversationId !== selectedChatId) return;
       setMessages((current) => current.some((item) => item._id === message._id) ? current : [...current, message]);
       if (!message.isMine) {
         markRead();

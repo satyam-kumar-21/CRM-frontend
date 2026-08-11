@@ -67,6 +67,18 @@ export interface ICompanyDashboard {
     totalEmployees: number;
     activeGroups: number;
     recentMessages: number;
+    totalLeads: number;
+    totalSales: number;
+    totalRevenue: number;
+    failedSales: number;
+    connectedLeads: number;
+    pendingLeads: number;
+    myLeads: number;
+    mySales: number;
+    myRevenue: number;
+    myFailedSales: number;
+    myConnectedLeads: number;
+    myPendingLeads: number;
   };
   groups: ICompanyGroup[];
   chatEmployees?: Array<Pick<ICompanyEmployee, '_id' | 'employeeId' | 'name' | 'email' | 'role'> & { latestChatAt?: string | null; unreadCount?: number }>;

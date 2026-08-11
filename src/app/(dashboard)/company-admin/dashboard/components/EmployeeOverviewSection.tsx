@@ -15,9 +15,18 @@ import type { NavSection } from '../types';
 
 export function EmployeeOverviewSection({
   employee,
+  stats,
   setActiveSection,
 }: {
   employee: ICompanyDashboard['employee'];
+  stats: {
+    myLeads: number;
+    mySales: number;
+    myRevenue: number;
+    myFailedSales: number;
+    myConnectedLeads: number;
+    myPendingLeads: number;
+  };
   setActiveSection: Dispatch<SetStateAction<NavSection>>;
 }) {
   const target = employee.monthlySalesTarget || employee.remoteTarget || 0;
@@ -61,8 +70,8 @@ export function EmployeeOverviewSection({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Metric 
           icon={TrendingUp} 
-          label="Achieved" 
-          value={`$${achieved.toLocaleString()}`} 
+          label="Revenue" 
+          value={`$${stats.myRevenue.toLocaleString()}`} 
           iconColor="text-emerald-400"
           iconBg="bg-emerald-500/10"
         />
@@ -73,13 +82,13 @@ export function EmployeeOverviewSection({
         />
         <Metric 
           icon={Users} 
-          label="Leads assigned" 
-          value={employee.leadsAssigned || 0} 
+          label="Leads" 
+          value={stats.myLeads} 
         />
         <Metric 
           icon={UserPlus} 
-          label="Converted" 
-          value={employee.leadsConverted || 0} 
+          label="Sales" 
+          value={stats.mySales} 
           iconColor="text-emerald-400"
           iconBg="bg-emerald-500/10"
         />

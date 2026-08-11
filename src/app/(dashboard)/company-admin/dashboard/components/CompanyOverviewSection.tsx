@@ -1,7 +1,7 @@
 'use client';
 
 import { Dispatch, SetStateAction } from 'react';
-import { MessageSquare, UserPlus, Users, Target, DollarSign, TrendingUp, CalendarCheck } from 'lucide-react';
+import { MessageSquare, UserPlus, Users, Target, DollarSign, TrendingUp, CalendarCheck, CheckCircle2, Flag } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { IEmployee, NavSection } from '../types';
 
@@ -9,12 +9,23 @@ export function CompanyOverviewSection({
   employees,
   companyName,
   attendanceSummary,
+  stats,
   setActiveSection,
   onAddEmployee,
 }: {
   employees: IEmployee[];
   companyName?: string;
   attendanceSummary?: { present?: number; absent?: number; holiday?: number; totalEmployees?: number };
+  stats: {
+    totalLeads: number;
+    totalSales: number;
+    totalRevenue: number;
+    failedSales: number;
+    connectedLeads: number;
+    pendingLeads: number;
+    totalEmployees: number;
+    activeGroups: number;
+  };
   setActiveSection: Dispatch<SetStateAction<NavSection>>;
   onAddEmployee: () => void;
 }) {
@@ -71,8 +82,8 @@ export function CompanyOverviewSection({
 
       {/* METRICS */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Metric label="Employees" value={employees.length} icon={Users} />
-        <Metric label="Total sales achieved" value={`$${achieved.toLocaleString()}`} icon={DollarSign} />
+        <Metric label="Employees" value={stats.totalEmployees} icon={Users} />
+        <Metric label="Total sales achieved" value={`$${stats.totalRevenue.toLocaleString()}`} icon={DollarSign} />
         <Metric label="Target completion" value={`${percent}%`} icon={Target} />
       </div>
 
@@ -83,6 +94,11 @@ export function CompanyOverviewSection({
           <Metric label="Holidays today" value={attendanceSummary.holiday ?? 0} icon={CalendarCheck} />
         </div>
       )}
+      <div className="grid gap-4 md:grid-cols-3 mt-4">
+        <Metric label="Total leads" value={stats.totalLeads} icon={UserPlus} />
+        <Metric label="Connected leads" value={stats.connectedLeads} icon={CheckCircle2} />
+        <Metric label="Failed sales" value={stats.failedSales} icon={Flag} />
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
         
