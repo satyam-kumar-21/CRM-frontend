@@ -82,8 +82,8 @@ export function CompanyOverviewSection({
 
       {/* METRICS */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Metric label="Employees" value={stats.totalEmployees} icon={Users} />
-        <Metric label="Total sales achieved" value={`$${stats.totalRevenue.toLocaleString()}`} icon={DollarSign} />
+        <Metric label="Employees" value={stats.totalEmployees ?? 0} icon={Users} />
+        <Metric label="Total sales achieved" value={`$${Number(stats.totalRevenue ?? 0).toLocaleString()}`} icon={DollarSign} />
         <Metric label="Target completion" value={`${percent}%`} icon={Target} />
       </div>
 

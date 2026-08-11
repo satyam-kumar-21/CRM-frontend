@@ -71,7 +71,7 @@ export function EmployeeOverviewSection({
         <Metric 
           icon={TrendingUp} 
           label="Revenue" 
-          value={`$${stats.myRevenue.toLocaleString()}`} 
+          value={`$${Number(stats.myRevenue ?? 0).toLocaleString()}`} 
           iconColor="text-emerald-400"
           iconBg="bg-emerald-500/10"
         />
@@ -83,12 +83,12 @@ export function EmployeeOverviewSection({
         <Metric 
           icon={Users} 
           label="Leads" 
-          value={stats.myLeads} 
+          value={stats.myLeads ?? 0} 
         />
         <Metric 
           icon={UserPlus} 
           label="Sales" 
-          value={stats.mySales} 
+          value={stats.mySales ?? 0} 
           iconColor="text-emerald-400"
           iconBg="bg-emerald-500/10"
         />
