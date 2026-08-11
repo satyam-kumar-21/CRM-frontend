@@ -1,18 +1,20 @@
 'use client';
 
 import { Dispatch, SetStateAction } from 'react';
-import { MessageSquare, UserPlus, Users, Target, DollarSign, TrendingUp } from 'lucide-react';
+import { MessageSquare, UserPlus, Users, Target, DollarSign, TrendingUp, CalendarCheck } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { IEmployee, NavSection } from '../types';
 
 export function CompanyOverviewSection({
   employees,
   companyName,
+  attendanceSummary,
   setActiveSection,
   onAddEmployee,
 }: {
   employees: IEmployee[];
   companyName?: string;
+  attendanceSummary?: { present?: number; absent?: number; holiday?: number; totalEmployees?: number };
   setActiveSection: Dispatch<SetStateAction<NavSection>>;
   onAddEmployee: () => void;
 }) {
@@ -73,6 +75,14 @@ export function CompanyOverviewSection({
         <Metric label="Total sales achieved" value={`$${achieved.toLocaleString()}`} icon={DollarSign} />
         <Metric label="Target completion" value={`${percent}%`} icon={Target} />
       </div>
+
+      {attendanceSummary && (
+        <div className="grid gap-4 md:grid-cols-3 mt-4">
+          <Metric label="Present today" value={attendanceSummary.present ?? 0} icon={CalendarCheck} />
+          <Metric label="Absent today" value={attendanceSummary.absent ?? 0} icon={Users} />
+          <Metric label="Holidays today" value={attendanceSummary.holiday ?? 0} icon={CalendarCheck} />
+        </div>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
         

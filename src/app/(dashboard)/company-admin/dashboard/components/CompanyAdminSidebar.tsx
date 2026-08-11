@@ -1,10 +1,11 @@
 'use client';
 
-import type { Dispatch, SetStateAction } from 'react';
+import React, { useState, type Dispatch, type SetStateAction } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { LogOut, Settings, ShieldCheck } from 'lucide-react';
+import { LogOut, Settings, ShieldCheck, Lock } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { getRoutePermissionKey } from '@/lib/useCompanySettings';
 import type { NavSection } from '../types';
 
 export interface CompanyAdminNavItem {
@@ -20,6 +21,7 @@ type CompanyAdminSidebarProps = {
   userName?: string;
   userRole?: string;
   canOpenSettings?: boolean;
+  routePermissions?: Record<string, boolean>;
   navigationMenu: CompanyAdminNavItem[];
   activeSection: NavSection;
   setActiveSection: Dispatch<SetStateAction<NavSection>>;
@@ -30,11 +32,13 @@ export function CompanyAdminSidebar({
   userName = 'Company Admin',
   userRole = 'Workspace owner',
   canOpenSettings = true,
+  routePermissions,
   navigationMenu,
   activeSection,
   setActiveSection,
 }: CompanyAdminSidebarProps) {
   const router = useRouter();
+  const [showRestricted, setShowRestricted] = useState<{ open: boolean; message?: string }>({ open: false });
 
   const handleLogout = async () => {
     try {
@@ -46,6 +50,7 @@ export function CompanyAdminSidebar({
   };
 
   return (
+    <>
     <aside className="flex flex-col border-r border-slate-800/80 bg-slate-900/90 px-4 py-5 backdrop-blur-md">
       <div className="mb-6">
         <div className="flex items-center gap-3 rounded-2xl bg-slate-950/80 p-3.5 border border-slate-800/60 shadow-md">
@@ -60,15 +65,20 @@ export function CompanyAdminSidebar({
         {navigationMenu.map((item) => {
           const Icon = item.icon;
           const active = activeSection === item.id;
+          const permissionKey = getRoutePermissionKey(item.id as string);
+          const disabled = !canOpenSettings && routePermissions && routePermissions[permissionKey] === false;
           return (
             <button
               key={item.id}
-              onClick={() => setActiveSection(item.id)}
+              onClick={() => {
+                if (disabled) { setShowRestricted({ open: true, message: 'Admin has restricted access to this section. Please contact Admin to request access.' }); return; }
+                setActiveSection(item.id);
+              }}
               className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-sm font-medium transition-all ${
-                active ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/25' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                active ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/25' : disabled ? 'text-slate-600 bg-slate-900/40 cursor-not-allowed' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
               }`}
             >
-              <span className="flex items-center gap-3"><Icon className="h-4 w-4" />{item.label}</span>
+              <span className="flex items-center gap-3"><Icon className="h-4 w-4" />{item.label}{disabled && <Lock className="h-3.5 w-3.5 text-rose-400" />}</span>
               {item.badge && <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${active ? 'bg-white/20 text-white' : 'bg-indigo-500/20 text-indigo-400'}`}>{item.badge}</span>}
               {item.count !== undefined && <span className={`text-xs px-2 py-0.5 rounded-md font-mono ${active ? 'bg-emerald-500 text-white' : 'bg-emerald-500/20 text-emerald-300'}`}>{item.count}</span>}
             </button>
@@ -91,5 +101,20 @@ export function CompanyAdminSidebar({
         </div>
       </div>
     </aside>
+    <AccessRestrictedModal open={showRestricted.open} message={showRestricted.message} onClose={() => setShowRestricted({ open: false })} />
+    </>
+  );
+}
+
+function AccessRestrictedModal({ open, message, onClose }: { open: boolean; message?: string; onClose: () => void }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60">
+      <div className="bg-slate-900 rounded-xl p-6 max-w-md">
+        <h3 className="text-lg font-bold text-white">Access Restricted</h3>
+        <p className="mt-3 text-sm text-slate-300">{message}</p>
+        <div className="mt-4 text-right"><button onClick={onClose} className="px-4 py-2 rounded-xl bg-indigo-600 text-white">OK</button></div>
+      </div>
+    </div>
   );
 }

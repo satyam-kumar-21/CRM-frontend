@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import { companyService, ILeaveRecord } from '@/services/companyService';
@@ -15,9 +16,17 @@ export function LeaveSection({ readOnly = false }: { readOnly?: boolean }) {
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const queryClient = useQueryClient();
   const loadRecords = () => {
     companyService.getLeave(month)
-      .then(setRecords)
+      .then((data) => {
+        setRecords(data);
+        if (readOnly) {
+          // update dashboard notification counts / leave counts
+          queryClient.invalidateQueries({ queryKey: ['companyDashboard'] });
+          queryClient.invalidateQueries({ queryKey: ['employeeDashboard'] });
+        }
+      })
       .catch(() => toast.error('Unable to load leave'));
   };
 

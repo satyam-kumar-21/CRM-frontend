@@ -1,0 +1,40 @@
+
+  export { QueriesResults } from './_tsup-dts-rollup.js';
+  export { QueriesOptions } from './_tsup-dts-rollup.js';
+> export { useQuery } from './_tsup-dts-rollup.js';
+  export { useSuspenseQuery } from './_tsup-dts-rollup.js';
+  export { useSuspenseInfiniteQuery } from './_tsup-dts-rollup.js';
+  export { QueryClientContext_alias_1 as QueryClientContext } from 
+'./_tsup-dts-rollup.js';
+  export { QueryClientProvider_alias_1 as QueryClientProvider } from 
+'./_tsup-dts-rollup.js';
+> export { useQueryClient_alias_1 as useQueryClient } from 
+'./_tsup-dts-rollup.js';
+  export { QueryClientProviderProps_alias_1 as QueryClientProviderProps } from 
+'./_tsup-dts-rollup.js';
+  export { QueryErrorResetBoundaryProps_alias_1 as 
+QueryErrorResetBoundaryProps } from './_tsup-dts-rollup.js';
+  export { QueryErrorResetFunction_alias_1 as QueryErrorResetFunction } from 
+'./_tsup-dts-rollup.js';
+  export { QueryErrorResetBoundary_alias_1 as QueryErrorResetBoundary } from 
+'./_tsup-dts-rollup.js';
+> export { useQueryErrorResetBoundary_alias_1 as useQueryErrorResetBoundary } 
+from './_tsup-dts-rollup.js';
+  export { useIsFetching } from './_tsup-dts-rollup.js';
+  export { useIsMutating } from './_tsup-dts-rollup.js';
+  export { UseBaseQueryOptions } from './_tsup-dts-rollup.js';
+  export { UsePrefetchQueryOptions } from './_tsup-dts-rollup.js';
+> export { AnyUseQueryOptions } from './_tsup-dts-rollup.js';
+> export { UseQueryOptions } from './_tsup-dts-rollup.js';
+  export { AnyUseSuspenseQueryOptions } from './_tsup-dts-rollup.js';
+  export { UseSuspenseQueryOptions } from './_tsup-dts-rollup.js';
+  export { UseSuspenseInfiniteQueryOptions } from './_tsup-dts-rollup.js';
+  export { UseBaseQueryResult } from './_tsup-dts-rollup.js';
+> export { UseQueryResult } from './_tsup-dts-rollup.js';
+  export { UseSuspenseQueryResult } from './_tsup-dts-rollup.js';
+> export { DefinedUseQueryResult } from './_tsup-dts-rollup.js';
+  export { UseInfiniteQueryResult } from './_tsup-dts-rollup.js';
+  export { DefinedUseInfiniteQueryResult } from './_tsup-dts-rollup.js';
+
+
+

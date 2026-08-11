@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
+import { useCompanyValidation, type CompanyValidationResponse } from '@/lib/useCompanySettings';
 
 type ProtectedRouteProps = {
   children: ReactNode;
@@ -12,34 +12,23 @@ type ProtectedRouteProps = {
 
 export function ProtectedRoute({ children, type, roles }: ProtectedRouteProps) {
   const router = useRouter();
-  const [authorized, setAuthorized] = useState(false);
+  const validationQuery = useCompanyValidation();
+  const userData = validationQuery.data as CompanyValidationResponse | undefined;
   const roleKey = roles?.join('|');
+  const userRole = userData?.user?.role;
 
   useEffect(() => {
-    let active = true;
+    if (validationQuery.isError) {
+      router.replace('/company-admin/login');
+      return;
+    }
 
-    const validate = async () => {
-      try {
-        const response = await api.get('/company/validate');
-        const userRole = response.data?.data?.user?.role;
+    if (validationQuery.isSuccess && roleKey && userRole && !roleKey.split('|').includes(userRole)) {
+      router.replace('/company-admin/login');
+    }
+  }, [validationQuery.isError, validationQuery.isSuccess, roleKey, router, userRole]);
 
-        if (roleKey && userRole && !roleKey.split('|').includes(userRole)) {
-          throw new Error('Invalid dashboard role');
-        }
-
-        if (active) setAuthorized(true);
-      } catch {
-        router.replace('/company-admin/login');
-      }
-    };
-
-    void validate();
-    return () => {
-      active = false;
-    };
-  }, [roleKey, router, type]);
-
-  if (!authorized) {
+  if (validationQuery.isLoading) {
     return <main className="min-h-screen bg-slate-950 grid place-items-center text-slate-400">Checking access...</main>;
   }
 

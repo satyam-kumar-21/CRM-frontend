@@ -74,6 +74,7 @@ export interface ICompanyDashboard {
   notifications?: { unread: number };
   announcements?: { unread: number };
   leave?: { pendingRequests: number; myLeaveRequests: number };
+  attendanceSummary?: { present?: number; absent?: number; holiday?: number; totalEmployees?: number };
 }
 
 export interface ICompanyEmployee {
@@ -194,6 +195,11 @@ export const companyService = {
     return res.data.data;
   },
 
+  validateSession: async () => {
+    const res = await api.get('/company/validate');
+    return res.data.data;
+  },
+
   createGroup: async (data: { name: string; description?: string; privacy?: 'public' | 'private'; memberIds?: string[] }) => {
     const res = await api.post('/company/groups', data);
     return res.data.data;
@@ -237,10 +243,18 @@ export const companyService = {
   getAttendanceEmployees: async (): Promise<Array<{ _id: string; name: string; employeeId: string; role: string }>> => (await api.get('/company/attendance/employees')).data.data,
   getAnnouncements: async (): Promise<IAnnouncement[]> => (await api.get('/company/announcements')).data.data,
   createAnnouncement: async (data: { title: string; content: string; targetRoles?: string[] }): Promise<IAnnouncement> => (await api.post('/company/announcements', data)).data.data,
+  deleteAnnouncement: async (id: string) => (await api.delete(`/company/announcements/${id}`)).data.data,
   markAnnouncementRead: async (id: string) => (await api.patch(`/company/announcements/${id}/read`)).data.data,
   getNotifications: async (): Promise<INotification[]> => (await api.get('/company/notifications')).data.data,
   markNotificationRead: async (id: string): Promise<INotification> => (await api.patch(`/company/notifications/${id}/read`)).data.data,
   getLeave: async (month?: string): Promise<ILeaveRecord[]> => (await api.get('/company/leave', { params: { month } })).data.data,
   createLeave: async (data: { leaveType: string; startDate: string; endDate: string; reason: string }): Promise<ILeaveRecord> => (await api.post('/company/leave', data)).data.data,
   updateLeaveStatus: async (id: string, status: string, rejectReason?: string): Promise<ILeaveRecord> => (await api.patch(`/company/leave/${id}/status`, { status, rejectReason })).data.data,
+  // Company settings
+  getSettings: async () => (await api.get('/company/settings')).data.data,
+  updateSettings: async (payload: any) => (await api.patch('/company/settings', payload)).data.data,
+  listHolidays: async () => (await api.get('/company/settings/holidays')).data.data,
+  addHoliday: async (payload: { name: string; date: string }) => (await api.post('/company/settings/holidays', payload)).data.data,
+  updateHoliday: async (hid: string, payload: { name?: string; date?: string }) => (await api.patch(`/company/settings/holidays/${hid}`, payload)).data.data,
+  deleteHoliday: async (hid: string) => (await api.delete(`/company/settings/holidays/${hid}`)).data.data,
 };

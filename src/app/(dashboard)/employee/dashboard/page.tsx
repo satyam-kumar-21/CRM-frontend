@@ -11,22 +11,12 @@ import { EmployeeOverviewSection } from '../../company-admin/dashboard/component
 import { LeadsSection, SalesSection } from '../../company-admin/dashboard/components/SalesLeadsSections';
 import { FailedSalesSection } from '../../company-admin/dashboard/components/FailedSalesSection';
 import { WorkspaceNotificationWatcher } from '../../company-admin/dashboard/components/WorkspaceNotificationWatcher';
+import EmployeeRouteGuard from '@/components/EmployeeRouteGuard';
 import { AttendanceSection } from '../../company-admin/dashboard/components/AttendanceSection';
-import { AnnouncementsSection } from '../../company-admin/dashboard/components/AnnouncementsSection';
+import { AnnouncementsSection } from '../../company-admin/dashboard/components';
 import { LeaveSection } from '../../company-admin/dashboard/components/LeaveSection';
+import { useCompanySettings, useCompanyValidation, type CompanySettingsResponse } from '@/lib/useCompanySettings';
 import type { ChatFilter, IEmployee, IGroupChannel, NavSection } from '../../company-admin/dashboard/types';
-
-const employeeNavigation = [
-  { id: 'overview' as NavSection, label: 'Overview', icon: Activity },
-  { id: 'chat' as NavSection, label: 'Workspace Chat', icon: MessageSquare, badge: 'Live' },
-  { id: 'leads' as NavSection, label: 'My Leads', icon: UserPlus },
-  { id: 'sales' as NavSection, label: 'My Sales', icon: TrendingUp },
-  { id: 'failed-sales' as NavSection, label: 'Failed Sales', icon: Flag },
-  { id: 'attendance' as NavSection, label: 'My Attendance', icon: CalendarCheck },
-  { id: 'announcements' as NavSection, label: 'Announcements', icon: Bell },
-  { id: 'leave' as NavSection, label: 'My Leave', icon: CalendarCheck },
-  { id: 'profile' as NavSection, label: 'Your Profile', icon: UserCircle },
-];
 
 export default function EmployeeDashboardPage() {
   const [activeSection, setActiveSection] = useState<NavSection>(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('section') === 'chat' ? 'chat' : 'overview');
@@ -34,10 +24,12 @@ export default function EmployeeDashboardPage() {
   const [selectedChatId, setSelectedChatId] = useState(() => typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('conversation') || '' : '');
   const [messageInput, setMessageInput] = useState('');
   const [chatActivity, setChatActivity] = useState<Record<string, { latestChatAt: string; unreadCount: number }>>({});
-  const { data, isLoading } = useQuery<ICompanyDashboard>({ queryKey: ['employeeDashboard'], queryFn: companyService.getDashboard });
-  const employee = data?.employee;
-  const groups: IGroupChannel[] = useMemo(() => (data?.groups || []).map((group) => ({ id: group._id, name: group.name, description: group.description, membersCount: group.members?.length || 0, privacy: group.privacy, createdDate: new Date(group.createdAt).toLocaleDateString(), latestChatAt: chatActivity[group._id]?.latestChatAt || group.latestChatAt, unreadCount: chatActivity[group._id]?.unreadCount ?? group.unreadCount ?? 0 })), [data?.groups, chatActivity]);
-  const employees: IEmployee[] = useMemo(() => (data?.chatEmployees || []).filter((item) => item._id !== data?.employee?._id).map((item) => ({ id: item._id, employeeId: item.employeeId, name: item.name, email: item.email || '', role: item.role, status: 'active', isSuspended: false, joinedDate: '', avatarBg: 'from-indigo-500 to-cyan-500', salesTarget: { monthlyTarget: 0, monthlyAchieved: 0, yearlyTarget: 0, yearlyAchieved: 0, hourlyAchievedToday: 0 }, dealsClosed: 0, conversionRate: 0, salesHistory: [], latestChatAt: chatActivity[item._id]?.latestChatAt || item.latestChatAt, unreadCount: chatActivity[item._id]?.unreadCount ?? item.unreadCount ?? 0 })), [data?.chatEmployees, data?.employee?._id, chatActivity]);
+  const validationQuery = useCompanyValidation();
+  const settingsQuery = useCompanySettings(Boolean(validationQuery.data));
+  const dashboardQuery = useQuery<ICompanyDashboard>({ queryKey: ['employeeDashboard'], queryFn: companyService.getDashboard, enabled: Boolean(validationQuery.data), retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false, refetchOnMount: false });
+  const employee = dashboardQuery.data?.employee;
+  const groups: IGroupChannel[] = useMemo(() => (dashboardQuery.data?.groups || []).map((group) => ({ id: group._id, name: group.name, description: group.description, membersCount: group.members?.length || 0, privacy: group.privacy, createdDate: new Date(group.createdAt).toLocaleDateString(), latestChatAt: chatActivity[group._id]?.latestChatAt || group.latestChatAt, unreadCount: chatActivity[group._id]?.unreadCount ?? group.unreadCount ?? 0 })), [dashboardQuery.data?.groups, chatActivity]);
+  const employees: IEmployee[] = useMemo(() => (dashboardQuery.data?.chatEmployees || []).filter((item) => item._id !== dashboardQuery.data?.employee?._id).map((item) => ({ id: item._id, employeeId: item.employeeId, name: item.name, email: item.email || '', role: item.role, status: 'active', isSuspended: false, joinedDate: '', avatarBg: 'from-indigo-500 to-cyan-500', salesTarget: { monthlyTarget: 0, monthlyAchieved: 0, yearlyTarget: 0, yearlyAchieved: 0, hourlyAchievedToday: 0 }, dealsClosed: 0, conversionRate: 0, salesHistory: [], latestChatAt: chatActivity[item._id]?.latestChatAt || item.latestChatAt, unreadCount: chatActivity[item._id]?.unreadCount ?? item.unreadCount ?? 0 })), [dashboardQuery.data?.chatEmployees, dashboardQuery.data?.employee?._id, chatActivity]);
   const employeeNavigation = [
     { id: 'overview' as NavSection, label: 'Overview', icon: Activity },
     { id: 'chat' as NavSection, label: 'Workspace Chat', icon: MessageSquare, badge: 'Live' },
@@ -45,8 +37,8 @@ export default function EmployeeDashboardPage() {
     { id: 'sales' as NavSection, label: 'My Sales', icon: TrendingUp },
     { id: 'failed-sales' as NavSection, label: 'Failed Sales', icon: Flag },
     { id: 'attendance' as NavSection, label: 'My Attendance', icon: CalendarCheck },
-    { id: 'announcements' as NavSection, label: 'Announcements', icon: Bell, count: data?.announcements?.unread },
-    { id: 'leave' as NavSection, label: 'My Leave', icon: CalendarCheck, count: data?.leave?.myLeaveRequests },
+    { id: 'announcements' as NavSection, label: 'Announcements', icon: Bell, count: dashboardQuery.data?.announcements?.unread },
+    { id: 'leave' as NavSection, label: 'My Leave', icon: CalendarCheck, count: dashboardQuery.data?.leave?.myLeaveRequests },
     { id: 'profile' as NavSection, label: 'Your Profile', icon: UserCircle },
   ];
 
@@ -70,18 +62,29 @@ export default function EmployeeDashboardPage() {
     return sentMessage;
   };
 
-  if (isLoading) return <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-100"><p className="text-sm text-slate-400">Loading Enterprise Dashboard...</p></div>;
+  const settingsLoading = settingsQuery.isLoading || validationQuery.isLoading;
+  const settingsError = settingsQuery.isError || validationQuery.isError;
+  const companySettings = settingsQuery.data as CompanySettingsResponse | undefined;
+  const permissions = companySettings?.settings?.routePermissions || {};
 
-  return <ProtectedRoute roles={['EMPLOYEE', 'HR', 'MANAGER', 'TEAM_LEAD', 'SALES', 'TECH_SUPPORT', 'IT', 'INTERN']}><div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased"><div className="grid min-h-screen lg:grid-cols-[280px_1fr]"><CompanyAdminSidebar companyName={data?.company.name} userName={employee?.name || 'Employee'} userRole={employee?.role || 'Employee'} canOpenSettings={false} navigationMenu={employeeNavigation} activeSection={activeSection} setActiveSection={setActiveSection} /><main className="flex flex-col h-screen overflow-hidden bg-slate-950">
+  if (settingsLoading || dashboardQuery.isLoading) {
+    return <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-100"><p className="text-sm text-slate-400">Loading employee permissions...</p></div>;
+  }
+
+  if (settingsError || !validationQuery.data) {
+    return <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-100"><p className="text-sm text-rose-400">Unable to validate session. Redirecting...</p></div>;
+  }
+
+  return <ProtectedRoute roles={['EMPLOYEE', 'HR', 'MANAGER', 'TEAM_LEAD', 'SALES', 'TECH_SUPPORT', 'IT', 'INTERN']}><div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased"><div className="grid min-h-screen lg:grid-cols-[280px_1fr]"><CompanyAdminSidebar companyName={dashboardQuery.data?.company.name} userName={employee?.name || 'Employee'} userRole={employee?.role || 'Employee'} canOpenSettings={false} routePermissions={permissions} navigationMenu={employeeNavigation} activeSection={activeSection} setActiveSection={setActiveSection} /><main className="flex flex-col h-screen overflow-hidden bg-slate-950">
     <WorkspaceNotificationWatcher dashboardPath="/employee/dashboard" onMessage={handleIncomingChatMessage} />
     {activeSection === 'overview' && employee && <EmployeeOverviewSection employee={employee} setActiveSection={setActiveSection} />}
-    {activeSection === 'chat' && <ChatSection groups={groups} employees={employees} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={messageInput} setMessageInput={setMessageInput} onSendMessage={sendMessage} currentUserName={employee?.name || 'Employee'} onConversationRead={handleConversationRead} />}
-    {activeSection === 'leads' && <div className="[&_button]:hidden"><LeadsSection readOnly /></div>}
-    {activeSection === 'sales' && <div className="[&_button]:hidden"><SalesSection readOnly /></div>}
-    {activeSection === 'failed-sales' && <div className="[&_button]:hidden"><FailedSalesSection /></div>}
-    {activeSection === 'attendance' && <AttendanceSection readOnly />}
-    {activeSection === 'announcements' && <AnnouncementsSection readOnly />}
-    {activeSection === 'leave' && <LeaveSection readOnly />}
+    {activeSection === 'chat' && <EmployeeRouteGuard permissionKey="chat" routePermissions={permissions} permissionsLoading={settingsLoading}><ChatSection groups={groups} employees={employees} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={messageInput} setMessageInput={setMessageInput} onSendMessage={sendMessage} currentUserName={employee?.name || 'Employee'} onConversationRead={handleConversationRead} /></EmployeeRouteGuard>}
+    {activeSection === 'leads' && <EmployeeRouteGuard permissionKey="leads" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><LeadsSection readOnly /></div></EmployeeRouteGuard>}
+    {activeSection === 'sales' && <EmployeeRouteGuard permissionKey="sales" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><SalesSection readOnly /></div></EmployeeRouteGuard>}
+    {activeSection === 'failed-sales' && <EmployeeRouteGuard permissionKey="failed-sales" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><FailedSalesSection /></div></EmployeeRouteGuard>}
+    {activeSection === 'attendance' && <EmployeeRouteGuard permissionKey="attendance" routePermissions={permissions} permissionsLoading={settingsLoading}><AttendanceSection readOnly /></EmployeeRouteGuard>}
+    {activeSection === 'announcements' && <EmployeeRouteGuard permissionKey="announcements" routePermissions={permissions} permissionsLoading={settingsLoading}><AnnouncementsSection readOnly /></EmployeeRouteGuard>}
+    {activeSection === 'leave' && <EmployeeRouteGuard permissionKey="leave" routePermissions={permissions} permissionsLoading={settingsLoading}><LeaveSection readOnly /></EmployeeRouteGuard>}
     {activeSection === 'profile' && employee && <EmployeeProfile employee={employee} />}
   </main></div></div></ProtectedRoute>;
 }
