@@ -70,7 +70,7 @@ export function CompanyAdminSidebar({
             >
               <span className="flex items-center gap-3"><Icon className="h-4 w-4" />{item.label}</span>
               {item.badge && <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${active ? 'bg-white/20 text-white' : 'bg-indigo-500/20 text-indigo-400'}`}>{item.badge}</span>}
-              {item.count !== undefined && <span className={`text-xs px-2 py-0.5 rounded-md font-mono ${active ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'}`}>{item.count}</span>}
+              {item.count !== undefined && <span className={`text-xs px-2 py-0.5 rounded-md font-mono ${active ? 'bg-emerald-500 text-white' : 'bg-emerald-500/20 text-emerald-300'}`}>{item.count}</span>}
             </button>
           );
         })}

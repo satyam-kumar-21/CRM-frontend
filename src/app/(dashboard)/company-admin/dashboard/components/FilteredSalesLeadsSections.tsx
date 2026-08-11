@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Download, Filter, TrendingUp, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { companyService, ICompanyEmployee, ICompanyLead, ICompanySale } from '@/services/companyService';
+import { matchesBusinessDateFilters } from '@/lib/businessDate';
 
 const input = 'rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs text-white outline-none focus:border-indigo-500';
 const csv = (name: string, rows: string[][]) => { const text = rows.map((row) => row.map((value) => `"${value.replaceAll('"', '""')}"`).join(',')).join('\n'); const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' })); link.download = name; link.click(); URL.revokeObjectURL(link.href); };
 
 type Filters = { employee: string; month: string; from: string; to: string };
-const matchesDate = (value: string | undefined, filters: Filters) => { if (!value) return !filters.month && !filters.from && !filters.to; const date = value.slice(0, 10); return (!filters.month || date.startsWith(filters.month)) && (!filters.from || date >= filters.from) && (!filters.to || date <= filters.to); };
+const matchesDate = (value: string | undefined, filters: Filters) => matchesBusinessDateFilters(value, filters);
 
 function FilterBar({ filters, setFilters, employees, label }: { filters: Filters; setFilters: (value: Filters) => void; employees: ICompanyEmployee[]; label: string }) {
   return <div className="flex flex-wrap items-end gap-2 rounded-xl border border-slate-800 bg-slate-900/70 p-3"><Filter className="mb-2 h-4 w-4 text-indigo-400" /><label className="text-[11px] text-slate-400">{label}<select value={filters.employee} onChange={(event) => setFilters({ ...filters, employee: event.target.value })} className={`${input} ml-1`}><option value="">Everyone</option>{employees.map((employee) => <option key={employee._id} value={employee.name}>{employee.name} · {employee.role}</option>)}</select></label><label className="text-[11px] text-slate-400">Month<input type="month" value={filters.month} onChange={(event) => setFilters({ ...filters, month: event.target.value, from: '', to: '' })} className={`${input} ml-1`} /></label><label className="text-[11px] text-slate-400">Start date<input type="date" value={filters.from} onChange={(event) => setFilters({ ...filters, from: event.target.value, month: '' })} className={`${input} ml-1`} /></label><label className="text-[11px] text-slate-400">End date<input type="date" value={filters.to} onChange={(event) => setFilters({ ...filters, to: event.target.value, month: '' })} className={`${input} ml-1`} /></label><button onClick={() => setFilters({ employee: '', month: '', from: '', to: '' })} className="rounded-lg bg-slate-700 px-3 py-2 text-xs text-white">Clear</button></div>;

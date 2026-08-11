@@ -4,9 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Check, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { companyService, ICompanyEmployee, ILeaveRecord } from '@/services/companyService';
+import { getBusinessMonthString } from '@/lib/businessDate';
 
 export function SalaryLeaveSection() {
-  const [employees, setEmployees] = useState<ICompanyEmployee[]>([]); const [leaves, setLeaves] = useState<ILeaveRecord[]>([]); const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [employees, setEmployees] = useState<ICompanyEmployee[]>([]); const [leaves, setLeaves] = useState<ILeaveRecord[]>([]); const [month, setMonth] = useState(getBusinessMonthString());
   useEffect(() => { companyService.getEmployees().then(setEmployees).catch(() => toast.error('Unable to load employees')); companyService.getLeave(month).then(setLeaves).catch(() => toast.error('Unable to load leave')); }, [month]);
   const visible = useMemo(() => employees.filter((employee) => !employee.salaryMonth || employee.salaryMonth === month), [employees, month]);
   const update = async (employee: ICompanyEmployee, credited: boolean) => { try { const result = await companyService.updateEmployee(employee._id, { salaryAmount: employee.salaryAmount || 0, salaryMonth: month, salaryCredited: credited }); setEmployees((current) => current.map((item) => item._id === employee._id ? { ...item, ...result } : item)); } catch { toast.error('Unable to update salary'); } };

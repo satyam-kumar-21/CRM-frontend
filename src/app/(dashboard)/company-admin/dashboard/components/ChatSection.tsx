@@ -5,6 +5,7 @@ import { Check, CheckCheck, Hash, MoreVertical, Pencil, Plus, Search, Send, Tras
 import { toast } from 'sonner';
 import { io } from 'socket.io-client';
 import { companyService, ICompanyMessage, type ICompanyLead, type LeadWorkflow } from '@/services/companyService';
+import { getBusinessDateString } from '@/lib/businessDate';
 import type { ChatFilter, IEmployee, IGroupChannel } from '../types';
 
 type ChatSectionProps = {
@@ -201,7 +202,7 @@ export function ChatSection(props: ChatSectionProps) {
       const confirmedAmount = Number(saleForm?.amount || '');
       if (!Number.isFinite(confirmedAmount) || confirmedAmount < 0) return;
       if (!saleForm?.paymentMethod) return;
-      await companyService.createSale({ leadId: workflow.leadId, ...workflow.lead, connectedBy: currentUserName, amount: confirmedAmount, paymentMethod: saleForm.paymentMethod, saleDate: new Date().toISOString().slice(0, 10) });
+      await companyService.createSale({ leadId: workflow.leadId, ...workflow.lead, connectedBy: currentUserName, amount: confirmedAmount, paymentMethod: saleForm.paymentMethod, saleDate: getBusinessDateString() });
       await companyService.updateLead(workflow.leadId, { ...workflow.lead, connected: workflow.connected || 'no', connectedBy: workflow.acceptedBy || currentUserName, isSale: 'yes' });
       return await updateWorkflow(message, { ...workflow, status: 'sale', isSale: 'yes', saleAmount: confirmedAmount, paymentMethod: saleForm.paymentMethod, closedBy: currentUserName });
     } catch (error: any) { toast.error(error.response?.data?.message || 'Unable to update lead workflow'); }

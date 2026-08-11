@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CalendarCheck, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { companyService, IAttendanceRecord } from '@/services/companyService';
+import { getBusinessMonthEndString } from '@/lib/businessDate';
 
 type AttendanceSectionProps = { readOnly?: boolean };
 
@@ -19,8 +20,15 @@ export function AttendanceSection({ readOnly = false }: AttendanceSectionProps) 
   const [month, setMonth] = useState('');
 
   const load = async () => {
-    try { setRecords(await companyService.getAttendance({ employeeId: employeeId || undefined, from: month ? `${month}-01` : from || undefined, to: month ? new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).toISOString().slice(0, 10) : to || undefined })); }
-    catch { toast.error('Unable to load attendance'); }
+    try {
+      setRecords(await companyService.getAttendance({
+        employeeId: employeeId || undefined,
+        from: month ? `${month}-01` : from || undefined,
+        to: month ? getBusinessMonthEndString(month) : to || undefined,
+      }));
+    } catch {
+      toast.error('Unable to load attendance');
+    }
   };
   useEffect(() => { void load(); if (!readOnly) companyService.getAttendanceEmployees().then(setEmployees).catch(() => toast.error('Unable to load employees')); }, [readOnly]);
 

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, Bell, CalendarCheck, Hash, MessageSquare, Settings, TrendingUp, UserPlus, Users } from 'lucide-react';
+import { Activity, Bell, CalendarCheck, Flag, Hash, MessageSquare, Settings, TrendingUp, UserPlus, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { companyService, ICompanyDashboard, ICompanyEmployee } from '@/services/companyService';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
@@ -18,6 +18,7 @@ import { EmployeesSection } from './components/EmployeesSection';
 import { GroupsSection } from './components/GroupsSection';
 import { LeadsSection, SalesSection } from './components/SalesLeadsSections';
 import { AdminSalesSection } from './components/AdminSalesSection';
+import { FailedSalesSection } from './components/FailedSalesSection';
 import { OverviewSection } from './components/OverviewSection';
 import { SalesAnalyticsModal } from './components/SalesAnalyticsModal';
 import { SettingsSection } from './components/SettingsSection';
@@ -95,7 +96,7 @@ export default function CompanyAdminDashboardPage() {
   const navigationMenu: CompanyAdminNavItem[] = [
     { id: 'overview', label: 'Overview', icon: Activity }, { id: 'chat', label: 'Workspace Chat', icon: MessageSquare, badge: 'Live' },
     { id: 'employees', label: 'Employees Directory', icon: Users, count: employeesList.length }, { id: 'groups', label: 'Channels & Groups', icon: Hash, count: groupsList.length },
-    { id: 'leads', label: 'Leads', icon: UserPlus },{ id: 'sales', label: 'Sales', icon: TrendingUp }, { id: 'attendance', label: 'Attendance', icon: CalendarCheck }, { id: 'salary', label: 'Salary', icon: TrendingUp }, { id: 'leave', label: 'Leave', icon: CalendarCheck }, { id: 'announcements', label: 'Announcements', icon: Bell },
+    { id: 'leads', label: 'Leads', icon: UserPlus },{ id: 'sales', label: 'Sales', icon: TrendingUp }, { id: 'failed-sales', label: 'Failed Sales', icon: Flag }, { id: 'attendance', label: 'Attendance', icon: CalendarCheck }, { id: 'salary', label: 'Salary', icon: TrendingUp }, { id: 'leave', label: 'Leave', icon: CalendarCheck, count: dashboard?.leave?.pendingRequests }, { id: 'announcements', label: 'Announcements', icon: Bell, count: dashboard?.announcements?.unread },
     { id: 'settings', label: 'Company Settings', icon: Settings },
   ];
 
@@ -262,6 +263,7 @@ export default function CompanyAdminDashboardPage() {
     {activeSection === 'chat' && <ChatSection groups={groupsList} employees={employeesList} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={chatMessageInput} setMessageInput={setChatMessageInput} onSendMessage={handleSendChatMessage} onSendLead={handleSendLead} currentUserName={dashboard?.employee?.name || 'Admin'} isAdmin onConversationRead={handleConversationRead} onCreateGroup={() => { setEditingGroup(null); setNewGroupName(''); setNewGroupDesc(''); setNewGroupPrivacy('public'); setNewGroupMemberIds([]); setShowCreateGroupModal(true); }} />}
     {activeSection === 'employees' && <EmployeesSection employees={employeesList} filteredEmployees={filteredEmployees} searchQuery={searchQuery} setSearchQuery={setSearchQuery} employeeRoleFilter={employeeRoleFilter} setEmployeeRoleFilter={setEmployeeRoleFilter} onSelectEmployee={setSelectedEmployeeForSales} onAddEmployee={handleOpenNewEmployeeModal} onEditEmployee={handleEditEmployee} onToggleBlock={handleToggleEmployeeBlock} onDeleteEmployee={handleDeleteEmployee} />}
     {activeSection === 'sales' && <AdminSalesSection />}
+    {activeSection === 'failed-sales' && <FailedSalesSection />}
     {activeSection === 'leads' && <LeadsSection />}
     {activeSection === 'attendance' && <AttendanceSection />}
     {activeSection === 'salary' && <SalaryLeaveSection />}

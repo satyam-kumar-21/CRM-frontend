@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, Bell, CalendarCheck, MessageSquare, TrendingUp, UserCircle, UserPlus } from 'lucide-react';
+import { Activity, Bell, CalendarCheck, MessageSquare, TrendingUp, UserCircle, UserPlus, Flag } from 'lucide-react';
 import { companyService, ICompanyDashboard, ICompanyMessage } from '@/services/companyService';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { CompanyAdminSidebar } from '../../company-admin/dashboard/components/CompanyAdminSidebar';
 import { ChatSection } from '../../company-admin/dashboard/components/workspaceChat';
 import { EmployeeOverviewSection } from '../../company-admin/dashboard/components/EmployeeOverviewSection';
 import { LeadsSection, SalesSection } from '../../company-admin/dashboard/components/SalesLeadsSections';
+import { FailedSalesSection } from '../../company-admin/dashboard/components/FailedSalesSection';
 import { WorkspaceNotificationWatcher } from '../../company-admin/dashboard/components/WorkspaceNotificationWatcher';
 import { AttendanceSection } from '../../company-admin/dashboard/components/AttendanceSection';
 import { AnnouncementsSection } from '../../company-admin/dashboard/components/AnnouncementsSection';
@@ -20,6 +21,7 @@ const employeeNavigation = [
   { id: 'chat' as NavSection, label: 'Workspace Chat', icon: MessageSquare, badge: 'Live' },
   { id: 'leads' as NavSection, label: 'My Leads', icon: UserPlus },
   { id: 'sales' as NavSection, label: 'My Sales', icon: TrendingUp },
+  { id: 'failed-sales' as NavSection, label: 'Failed Sales', icon: Flag },
   { id: 'attendance' as NavSection, label: 'My Attendance', icon: CalendarCheck },
   { id: 'announcements' as NavSection, label: 'Announcements', icon: Bell },
   { id: 'leave' as NavSection, label: 'My Leave', icon: CalendarCheck },
@@ -36,6 +38,17 @@ export default function EmployeeDashboardPage() {
   const employee = data?.employee;
   const groups: IGroupChannel[] = useMemo(() => (data?.groups || []).map((group) => ({ id: group._id, name: group.name, description: group.description, membersCount: group.members?.length || 0, privacy: group.privacy, createdDate: new Date(group.createdAt).toLocaleDateString(), latestChatAt: chatActivity[group._id]?.latestChatAt || group.latestChatAt, unreadCount: chatActivity[group._id]?.unreadCount ?? group.unreadCount ?? 0 })), [data?.groups, chatActivity]);
   const employees: IEmployee[] = useMemo(() => (data?.chatEmployees || []).filter((item) => item._id !== data?.employee?._id).map((item) => ({ id: item._id, employeeId: item.employeeId, name: item.name, email: item.email || '', role: item.role, status: 'active', isSuspended: false, joinedDate: '', avatarBg: 'from-indigo-500 to-cyan-500', salesTarget: { monthlyTarget: 0, monthlyAchieved: 0, yearlyTarget: 0, yearlyAchieved: 0, hourlyAchievedToday: 0 }, dealsClosed: 0, conversionRate: 0, salesHistory: [], latestChatAt: chatActivity[item._id]?.latestChatAt || item.latestChatAt, unreadCount: chatActivity[item._id]?.unreadCount ?? item.unreadCount ?? 0 })), [data?.chatEmployees, data?.employee?._id, chatActivity]);
+  const employeeNavigation = [
+    { id: 'overview' as NavSection, label: 'Overview', icon: Activity },
+    { id: 'chat' as NavSection, label: 'Workspace Chat', icon: MessageSquare, badge: 'Live' },
+    { id: 'leads' as NavSection, label: 'My Leads', icon: UserPlus },
+    { id: 'sales' as NavSection, label: 'My Sales', icon: TrendingUp },
+    { id: 'failed-sales' as NavSection, label: 'Failed Sales', icon: Flag },
+    { id: 'attendance' as NavSection, label: 'My Attendance', icon: CalendarCheck },
+    { id: 'announcements' as NavSection, label: 'Announcements', icon: Bell, count: data?.announcements?.unread },
+    { id: 'leave' as NavSection, label: 'My Leave', icon: CalendarCheck, count: data?.leave?.myLeaveRequests },
+    { id: 'profile' as NavSection, label: 'Your Profile', icon: UserCircle },
+  ];
 
   const handleIncomingChatMessage = (message: ICompanyMessage) => {
     const conversationId = message.conversationId || message.groupId;
@@ -65,6 +78,7 @@ export default function EmployeeDashboardPage() {
     {activeSection === 'chat' && <ChatSection groups={groups} employees={employees} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={messageInput} setMessageInput={setMessageInput} onSendMessage={sendMessage} currentUserName={employee?.name || 'Employee'} onConversationRead={handleConversationRead} />}
     {activeSection === 'leads' && <div className="[&_button]:hidden"><LeadsSection readOnly /></div>}
     {activeSection === 'sales' && <div className="[&_button]:hidden"><SalesSection readOnly /></div>}
+    {activeSection === 'failed-sales' && <div className="[&_button]:hidden"><FailedSalesSection /></div>}
     {activeSection === 'attendance' && <AttendanceSection readOnly />}
     {activeSection === 'announcements' && <AnnouncementsSection readOnly />}
     {activeSection === 'leave' && <LeaveSection readOnly />}
