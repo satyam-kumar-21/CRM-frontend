@@ -8,11 +8,13 @@ import { companyService, ICompanyDashboard, ICompanyEmployee } from '@/services/
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { CompanyAdminSidebar, type CompanyAdminNavItem } from './components/CompanyAdminSidebar';
 import { AddEmployeeModal } from './components/AddEmployeeModal';
+import { EmployeeDetailsModal } from './components/EmployeeDetailsModal';
 import { SalaryLeaveSection } from './components/SalaryLeaveSection';
 import { AnnouncementsSection } from './components';
 import { LeaveSection } from './components/LeaveSection';
 import { CompanyOverviewSection } from './components/CompanyOverviewSection';
 import { ChatSection } from './components/workspaceChat';
+import TodaysReportSection from './components/TodaysReportSection';
 import { CreateGroupModal } from './components/CreateGroupModal';
 import { EmployeesSection } from './components/EmployeesSection';
 import { GroupsSection } from './components/GroupsSection';
@@ -20,12 +22,12 @@ import { LeadsSection, SalesSection } from './components/SalesLeadsSections';
 import { AdminSalesSection } from './components/AdminSalesSection';
 import { FailedSalesSection } from './components/FailedSalesSection';
 import { OverviewSection } from './components/OverviewSection';
-import { SalesAnalyticsModal } from './components/SalesAnalyticsModal';
+import { RemoteSupportSection } from './components/RemoteSupportSection';
 import { SettingsSection } from './components/SettingsSection';
 import { WorkspaceNotificationWatcher } from './components/WorkspaceNotificationWatcher';
 import { AttendanceSection } from './components/AttendanceSection';
 import { mapCompanyEmployee } from './employeeMapper';
-import type { ChatFilter, IEmployee, IGroupChannel, NavSection, TimeframeFilter } from './types';
+import type { ChatFilter, IEmployee, IGroupChannel, NavSection } from './types';
 
 export default function CompanyAdminDashboardPage() {
   const [activeSection, setActiveSection] = useState<NavSection>(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('section') === 'chat' ? 'chat' : 'overview');
@@ -34,8 +36,7 @@ export default function CompanyAdminDashboardPage() {
   
   const [searchQuery, setSearchQuery] = useState('');
   const [employeeRoleFilter, setEmployeeRoleFilter] = useState('all');
-  const [selectedEmployeeForSales, setSelectedEmployeeForSales] = useState<IEmployee | null>(null);
-  const [salesTimeframeFilter, setSalesTimeframeFilter] = useState<TimeframeFilter>('month');
+  const [selectedEmployeeForDetails, setSelectedEmployeeForDetails] = useState<IEmployee | null>(null);
   const [activeChatFilter, setActiveChatFilter] = useState<ChatFilter>('all');
   const [selectedChatId, setSelectedChatId] = useState(() => typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('conversation') || '' : '');
   const [chatMessageInput, setChatMessageInput] = useState('');
@@ -94,9 +95,19 @@ export default function CompanyAdminDashboardPage() {
   }), [employeesList, searchQuery, employeeRoleFilter]);
 
   const navigationMenu: CompanyAdminNavItem[] = [
-    { id: 'overview', label: 'Overview', icon: Activity }, { id: 'chat', label: 'Workspace Chat', icon: MessageSquare, badge: 'Live' },
-    { id: 'employees', label: 'Employees Directory', icon: Users, count: employeesList.length }, { id: 'groups', label: 'Channels & Groups', icon: Hash, count: groupsList.length },
-    { id: 'leads', label: 'Leads', icon: UserPlus },{ id: 'sales', label: 'Sales', icon: TrendingUp }, { id: 'failed-sales', label: 'Failed Sales', icon: Flag }, { id: 'attendance', label: 'Attendance', icon: CalendarCheck }, { id: 'salary', label: 'Salary', icon: TrendingUp }, { id: 'leave', label: 'Leave', icon: CalendarCheck, count: dashboard?.leave?.pendingRequests }, { id: 'announcements', label: 'Announcements', icon: Bell, count: dashboard?.announcements?.unread },
+    { id: 'overview', label: 'Overview', icon: Activity },
+    { id: 'chat', label: 'Workspace Chat', icon: MessageSquare, badge: 'Live' },
+    { id: 'employees', label: 'Employees Directory', icon: Users, count: employeesList.length },
+    { id: 'groups', label: 'Channels & Groups', icon: Hash, count: groupsList.length },
+    { id: 'leads', label: 'Leads', icon: UserPlus },
+    { id: 'sales', label: 'Sales', icon: TrendingUp },
+    { id: 'failed-sales', label: 'Failed Sales', icon: Flag },
+    { id: 'remote-support', label: 'Remote Support', icon: UserPlus },
+    { id: 'todays-report', label: "Today's Report", icon: CalendarCheck },
+    { id: 'attendance', label: 'Attendance', icon: CalendarCheck },
+    { id: 'salary', label: 'Salary', icon: TrendingUp },
+    { id: 'leave', label: 'Leave', icon: CalendarCheck, count: dashboard?.leave?.pendingRequests },
+    { id: 'announcements', label: 'Announcements', icon: Bell, count: dashboard?.announcements?.unread },
     { id: 'settings', label: 'Company Settings', icon: Settings },
   ];
 
@@ -238,21 +249,11 @@ export default function CompanyAdminDashboardPage() {
     try {
       await companyService.deleteEmployee(employee.id);
       setEmployeesList((current) => current.filter((item) => item.id !== employee.id));
-      setSelectedEmployeeForSales((current) => current?.id === employee.id ? null : current);
+      setSelectedEmployeeForDetails((current) => current?.id === employee.id ? null : current);
       toast.success(`${employee.name} deleted`);
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Unable to delete employee');
     }
-  };
-
-  const calculateSalesAnalytics = (employee: IEmployee, timeframe: TimeframeFilter) => {
-    let target = employee.salesTarget.monthlyTarget;
-    let achieved = employee.salesTarget.monthlyAchieved;
-    if (timeframe === 'today') { target = Math.round(employee.salesTarget.monthlyTarget / 20); achieved = employee.salesTarget.hourlyAchievedToday; }
-    if (timeframe === 'year') { target = employee.salesTarget.yearlyTarget; achieved = employee.salesTarget.yearlyAchieved; }
-    if (timeframe === 'all') { target = employee.salesTarget.yearlyTarget * 2; achieved = employee.salesTarget.yearlyAchieved + 150000; }
-    const history = timeframe === 'today' ? employee.salesHistory.filter((sale) => sale.timeframe === 'today') : timeframe === 'month' ? employee.salesHistory.filter((sale) => sale.timeframe === 'today' || sale.timeframe === 'month') : employee.salesHistory;
-    return { target, achieved, remaining: Math.max(0, target - achieved), progressPercent: Math.min(100, Math.round((achieved / (target || 1)) * 100)), history };
   };
 
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-100"><p className="text-sm text-slate-400">Loading Enterprise Dashboard...</p></div>;
@@ -261,9 +262,11 @@ export default function CompanyAdminDashboardPage() {
     <WorkspaceNotificationWatcher dashboardPath="/company-admin/dashboard" onMessage={handleIncomingChatMessage} />
     {activeSection === 'overview' && dashboard?.stats && <CompanyOverviewSection employees={employeesList} companyName={dashboard?.company?.name} attendanceSummary={dashboard?.attendanceSummary} stats={dashboard.stats} setActiveSection={setActiveSection} onAddEmployee={() => setShowAddEmployeeModal(true)} />}
     {activeSection === 'chat' && <ChatSection groups={groupsList} employees={employeesList} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={chatMessageInput} setMessageInput={setChatMessageInput} onSendMessage={handleSendChatMessage} onSendLead={handleSendLead} currentUserName={dashboard?.employee?.name || 'Admin'} isAdmin onConversationRead={handleConversationRead} onCreateGroup={() => { setEditingGroup(null); setNewGroupName(''); setNewGroupDesc(''); setNewGroupPrivacy('public'); setNewGroupMemberIds([]); setShowCreateGroupModal(true); }} />}
-    {activeSection === 'employees' && <EmployeesSection employees={employeesList} filteredEmployees={filteredEmployees} searchQuery={searchQuery} setSearchQuery={setSearchQuery} employeeRoleFilter={employeeRoleFilter} setEmployeeRoleFilter={setEmployeeRoleFilter} onSelectEmployee={setSelectedEmployeeForSales} onAddEmployee={handleOpenNewEmployeeModal} onEditEmployee={handleEditEmployee} onToggleBlock={handleToggleEmployeeBlock} onDeleteEmployee={handleDeleteEmployee} />}
+    {activeSection === 'todays-report' && <TodaysReportSection report={dashboard?.stats?.todayReport} />}
+    {activeSection === 'employees' && <EmployeesSection employees={employeesList} filteredEmployees={filteredEmployees} searchQuery={searchQuery} setSearchQuery={setSearchQuery} employeeRoleFilter={employeeRoleFilter} setEmployeeRoleFilter={setEmployeeRoleFilter} onSelectEmployee={setSelectedEmployeeForDetails} onAddEmployee={handleOpenNewEmployeeModal} onEditEmployee={handleEditEmployee} onToggleBlock={handleToggleEmployeeBlock} onDeleteEmployee={handleDeleteEmployee} />}
     {activeSection === 'sales' && <AdminSalesSection />}
     {activeSection === 'failed-sales' && <FailedSalesSection />}
+    {activeSection === 'remote-support' && <RemoteSupportSection role={dashboard?.employee?.role} isAdmin />}
     {activeSection === 'leads' && <LeadsSection />}
     {activeSection === 'attendance' && <AttendanceSection />}
     {activeSection === 'salary' && <SalaryLeaveSection />}
@@ -273,7 +276,7 @@ export default function CompanyAdminDashboardPage() {
     
     {activeSection === 'settings' && <SettingsSection />}
   </main></div>
-  {selectedEmployeeForSales && <SalesAnalyticsModal employee={selectedEmployeeForSales} timeframe={salesTimeframeFilter} setTimeframe={setSalesTimeframeFilter} onClose={() => setSelectedEmployeeForSales(null)} calculate={calculateSalesAnalytics} />}
+  {selectedEmployeeForDetails && <EmployeeDetailsModal employee={selectedEmployeeForDetails} companyEmployees={employeesList} onClose={() => setSelectedEmployeeForDetails(null)} onOpenChat={(employeeId) => { setActiveSection('chat'); setSelectedChatId(employeeId); }} onOpenSection={(section) => setActiveSection(section)} />}
   {showAddEmployeeModal && <AddEmployeeModal onSubmit={handleAddEmployeeSubmit} onClose={() => { setShowAddEmployeeModal(false); setEditingEmployee(null); }} employeeId={editingEmployee?.employeeId} submitLabel={editingEmployee ? 'Save changes' : 'Confirm & Add'} name={newEmpName} setName={setNewEmpName} email={newEmpEmail} setEmail={setNewEmpEmail} password={newEmpPassword} setPassword={setNewEmpPassword} phone={newEmpPhone} setPhone={setNewEmpPhone} role={newEmpRole} setRole={setNewEmpRole} target={newEmpTarget} setTarget={setNewEmpTarget} remoteTarget={newEmpRemoteTarget} setRemoteTarget={setNewEmpRemoteTarget} />}
   {showCreateGroupModal && <CreateGroupModal onSubmit={handleCreateGroupSubmit} onClose={() => { setShowCreateGroupModal(false); setEditingGroup(null); }} name={newGroupName} setName={setNewGroupName} description={newGroupDesc} setDescription={setNewGroupDesc} privacy={newGroupPrivacy} setPrivacy={setNewGroupPrivacy} employees={companyEmployees || []} selectedMemberIds={newGroupMemberIds} setSelectedMemberIds={setNewGroupMemberIds} editing={Boolean(editingGroup)} />}</div></ProtectedRoute>;
 }

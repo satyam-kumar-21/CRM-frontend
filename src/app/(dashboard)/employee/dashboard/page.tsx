@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, Bell, CalendarCheck, MessageSquare, TrendingUp, UserCircle, UserPlus, Flag } from 'lucide-react';
-import { companyService, ICompanyDashboard, ICompanyMessage } from '@/services/companyService';
+import { Activity, Bell, CalendarCheck, MessageSquare, TrendingUp, UserCircle, UserPlus, Flag, Layers, LifeBuoy, ShieldCheck } from 'lucide-react';
+import { companyService, ICompanyDashboard, ICompanyMessage, IProjectRecord, IRemoteSupportRecord } from '@/services/companyService';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
-import { CompanyAdminSidebar } from '../../company-admin/dashboard/components/CompanyAdminSidebar';
+import { CompanyAdminSidebar, type CompanyAdminNavItem } from '../../company-admin/dashboard/components/CompanyAdminSidebar';
 import { ChatSection } from '../../company-admin/dashboard/components/workspaceChat';
 import { EmployeeOverviewSection } from '../../company-admin/dashboard/components/EmployeeOverviewSection';
 import { LeadsSection, SalesSection } from '../../company-admin/dashboard/components/SalesLeadsSections';
@@ -29,19 +29,61 @@ export default function EmployeeDashboardPage() {
   const dashboardQuery = useQuery<ICompanyDashboard>({ queryKey: ['employeeDashboard'], queryFn: companyService.getDashboard, enabled: Boolean(validationQuery.data), retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false, refetchOnMount: false });
   const employee = dashboardQuery.data?.employee;
   const dashboardStats = dashboardQuery.data?.stats;
+  const remoteSupportQuery = useQuery<IRemoteSupportRecord[]>({
+    queryKey: ['remoteSupport'],
+    queryFn: companyService.getRemoteSupport,
+    enabled: Boolean(employee && ['SALES', 'TECH_SUPPORT'].includes(employee.role)),
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+  });
+  const projectQuery = useQuery<IProjectRecord[]>({
+    queryKey: ['projects'],
+    queryFn: companyService.getProjects,
+    enabled: Boolean(employee && ['IT', 'MANAGER', 'TEAM_LEAD'].includes(employee.role)),
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+  });
   const groups: IGroupChannel[] = useMemo(() => (dashboardQuery.data?.groups || []).map((group) => ({ id: group._id, name: group.name, description: group.description, membersCount: group.members?.length || 0, privacy: group.privacy, createdDate: new Date(group.createdAt).toLocaleDateString(), latestChatAt: chatActivity[group._id]?.latestChatAt || group.latestChatAt, unreadCount: chatActivity[group._id]?.unreadCount ?? group.unreadCount ?? 0 })), [dashboardQuery.data?.groups, chatActivity]);
   const employees: IEmployee[] = useMemo(() => (dashboardQuery.data?.chatEmployees || []).filter((item) => item._id !== dashboardQuery.data?.employee?._id).map((item) => ({ id: item._id, employeeId: item.employeeId, name: item.name, email: item.email || '', role: item.role, status: 'active', isSuspended: false, joinedDate: '', avatarBg: 'from-indigo-500 to-cyan-500', salesTarget: { monthlyTarget: 0, monthlyAchieved: 0, yearlyTarget: 0, yearlyAchieved: 0, hourlyAchievedToday: 0 }, dealsClosed: 0, conversionRate: 0, salesHistory: [], latestChatAt: chatActivity[item._id]?.latestChatAt || item.latestChatAt, unreadCount: chatActivity[item._id]?.unreadCount ?? item.unreadCount ?? 0 })), [dashboardQuery.data?.chatEmployees, dashboardQuery.data?.employee?._id, chatActivity]);
-  const employeeNavigation = [
-    { id: 'overview' as NavSection, label: 'Overview', icon: Activity },
-    { id: 'chat' as NavSection, label: 'Workspace Chat', icon: MessageSquare, badge: 'Live' },
-    { id: 'leads' as NavSection, label: 'My Leads', icon: UserPlus },
-    { id: 'sales' as NavSection, label: 'My Sales', icon: TrendingUp },
-    { id: 'failed-sales' as NavSection, label: 'Failed Sales', icon: Flag },
-    { id: 'attendance' as NavSection, label: 'My Attendance', icon: CalendarCheck },
-    { id: 'announcements' as NavSection, label: 'Announcements', icon: Bell, count: dashboardQuery.data?.announcements?.unread },
-    { id: 'leave' as NavSection, label: 'My Leave', icon: CalendarCheck, count: dashboardQuery.data?.leave?.myLeaveRequests },
-    { id: 'profile' as NavSection, label: 'Your Profile', icon: UserCircle },
-  ];
+  const employeeNavigation = useMemo(() => {
+    const baseNavigation: CompanyAdminNavItem[] = [
+      { id: 'overview' as NavSection, label: 'Overview', icon: Activity },
+      { id: 'chat' as NavSection, label: 'Workspace Chat', icon: MessageSquare, badge: 'Live' },
+    ];
+
+    const role = employee?.role;
+    if (role === 'SALES') {
+      baseNavigation.push(
+        { id: 'leads' as NavSection, label: 'My Leads', icon: UserPlus },
+        { id: 'sales' as NavSection, label: 'My Sales', icon: TrendingUp },
+        { id: 'failed-sales' as NavSection, label: 'Failed Sales', icon: Flag },
+        { id: 'remote-support' as NavSection, label: 'Remote Support', icon: LifeBuoy },
+      );
+    } else if (role === 'TECH_SUPPORT') {
+      baseNavigation.push({ id: 'remote-support' as NavSection, label: 'Support Tickets', icon: LifeBuoy });
+    } else if (role === 'IT') {
+      baseNavigation.push({ id: 'projects' as NavSection, label: 'IT Projects', icon: Layers });
+    } else if (role === 'MANAGER' || role === 'TEAM_LEAD') {
+      baseNavigation.push(
+        { id: 'leads' as NavSection, label: 'Team Leads', icon: UserPlus },
+        { id: 'sales' as NavSection, label: 'Team Sales', icon: TrendingUp },
+        { id: 'projects' as NavSection, label: 'Projects', icon: Layers },
+      );
+    }
+
+    baseNavigation.push(
+      { id: 'attendance' as NavSection, label: 'My Attendance', icon: CalendarCheck },
+      { id: 'announcements' as NavSection, label: 'Announcements', icon: Bell, count: dashboardQuery.data?.announcements?.unread },
+      { id: 'leave' as NavSection, label: 'My Leave', icon: CalendarCheck, count: dashboardQuery.data?.leave?.myLeaveRequests },
+      { id: 'profile' as NavSection, label: 'Your Profile', icon: UserCircle },
+    );
+
+    return baseNavigation;
+  }, [employee?.role, dashboardQuery.data?.announcements?.unread, dashboardQuery.data?.leave?.myLeaveRequests]);
 
   const handleIncomingChatMessage = (message: ICompanyMessage) => {
     const conversationId = message.conversationId || message.groupId;
@@ -78,23 +120,110 @@ export default function EmployeeDashboardPage() {
 
   return <ProtectedRoute roles={['EMPLOYEE', 'HR', 'MANAGER', 'TEAM_LEAD', 'SALES', 'TECH_SUPPORT', 'IT', 'INTERN']}><div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased"><div className="grid min-h-screen lg:grid-cols-[280px_1fr]"><CompanyAdminSidebar companyName={dashboardQuery.data?.company.name} userName={employee?.name || 'Employee'} userRole={employee?.role || 'Employee'} canOpenSettings={false} routePermissions={permissions} navigationMenu={employeeNavigation} activeSection={activeSection} setActiveSection={setActiveSection} /><main className="flex flex-col h-screen overflow-hidden bg-slate-950">
     <WorkspaceNotificationWatcher dashboardPath="/employee/dashboard" onMessage={handleIncomingChatMessage} />
-    {activeSection === 'overview' && employee && dashboardStats && <EmployeeOverviewSection employee={employee} stats={dashboardStats} setActiveSection={setActiveSection} />}
+    {activeSection === 'overview' && employee && dashboardStats && <EmployeeOverviewSection employee={employee} stats={dashboardStats} remoteSupportSummary={dashboardQuery.data?.remoteSupportSummary} projectSummary={dashboardQuery.data?.projectSummary} setActiveSection={setActiveSection} />}
     {activeSection === 'chat' && <EmployeeRouteGuard permissionKey="chat" routePermissions={permissions} permissionsLoading={settingsLoading}><ChatSection groups={groups} employees={employees} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={messageInput} setMessageInput={setMessageInput} onSendMessage={sendMessage} currentUserName={employee?.name || 'Employee'} onConversationRead={handleConversationRead} /></EmployeeRouteGuard>}
     {activeSection === 'leads' && <EmployeeRouteGuard permissionKey="leads" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><LeadsSection readOnly /></div></EmployeeRouteGuard>}
     {activeSection === 'sales' && <EmployeeRouteGuard permissionKey="sales" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><SalesSection readOnly /></div></EmployeeRouteGuard>}
     {activeSection === 'failed-sales' && <EmployeeRouteGuard permissionKey="failed-sales" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><FailedSalesSection /></div></EmployeeRouteGuard>}
+    {activeSection === 'remote-support' && <EmployeeRouteGuard permissionKey="remote-support" routePermissions={permissions} permissionsLoading={settingsLoading}><RemoteSupportSection records={remoteSupportQuery.data || []} loading={remoteSupportQuery.isLoading} role={employee?.role} /></EmployeeRouteGuard>}
+    {activeSection === 'projects' && <EmployeeRouteGuard permissionKey="projects" routePermissions={permissions} permissionsLoading={settingsLoading}><ProjectSection projects={projectQuery.data || []} loading={projectQuery.isLoading} /></EmployeeRouteGuard>}
     {activeSection === 'attendance' && <EmployeeRouteGuard permissionKey="attendance" routePermissions={permissions} permissionsLoading={settingsLoading}><AttendanceSection readOnly /></EmployeeRouteGuard>}
     {activeSection === 'announcements' && <EmployeeRouteGuard permissionKey="announcements" routePermissions={permissions} permissionsLoading={settingsLoading}><AnnouncementsSection readOnly /></EmployeeRouteGuard>}
     {activeSection === 'leave' && <EmployeeRouteGuard permissionKey="leave" routePermissions={permissions} permissionsLoading={settingsLoading}><LeaveSection readOnly /></EmployeeRouteGuard>}
-    {activeSection === 'profile' && employee && <EmployeeProfile employee={employee} />}
+    {activeSection === 'profile' && employee && <EmployeeProfile employee={employee} remoteSupportSummary={dashboardQuery.data?.remoteSupportSummary} projectSummary={dashboardQuery.data?.projectSummary} />}
   </main></div></div></ProtectedRoute>;
 }
 
-function EmployeeProfile({ employee }: { employee: ICompanyDashboard['employee'] }) {
+function EmployeeProfile({ employee, remoteSupportSummary, projectSummary }: { employee: ICompanyDashboard['employee']; remoteSupportSummary?: ICompanyDashboard['remoteSupportSummary']; projectSummary?: ICompanyDashboard['projectSummary']; }) {
   const target = employee.monthlySalesTarget || employee.remoteTarget || 0;
   const achieved = employee.monthlySalesAchieved || 0;
   const progress = target ? Math.min(100, Math.round((achieved / target) * 100)) : 0;
-  return <div className="p-6 overflow-y-auto space-y-6"><header className="pb-4 border-b border-slate-800"><p className="text-sm text-indigo-400">Your profile</p><h1 className="mt-1 text-2xl font-bold text-white">{employee.name}</h1><p className="mt-2 text-sm text-slate-400">{employee.email || 'No email recorded'} · {employee.role}</p></header><div className="grid gap-5 md:grid-cols-4"><ProfileMetric label="Employee ID" value={employee.employeeId} /><ProfileMetric label="Department / role" value={employee.role} /><ProfileMetric label="Joined" value={employee.createdAt ? new Date(employee.createdAt).toLocaleDateString() : 'Not available'} /><ProfileMetric label="Target progress" value={`${progress}%`} /></div><div className="grid gap-6 lg:grid-cols-2"><section className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60"><h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Performance snapshot</h2><div className="mt-5 grid grid-cols-2 gap-4 text-sm"><ProfileMetric label="Target" value={target ? `$${target.toLocaleString()}` : 'Not assigned'} /><ProfileMetric label="Completed" value={achieved ? `$${achieved.toLocaleString()}` : '0'} /><ProfileMetric label="Remaining" value={target ? `$${Math.max(0, target - achieved).toLocaleString()}` : 'Not assigned'} /><ProfileMetric label="Leads converted" value={String(employee.leadsConverted || 0)} /></div><div className="mt-5 h-2 rounded-full bg-slate-800"><div className="h-2 rounded-full bg-indigo-500" style={{ width: `${progress}%` }} /></div></section><section className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60"><h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Contact information</h2><dl className="mt-5 space-y-3 text-sm"><div className="flex justify-between gap-4"><dt className="text-slate-500">Phone</dt><dd className="text-slate-200">{employee.phone || 'Not available'}</dd></div><div className="flex justify-between gap-4"><dt className="text-slate-500">Leads assigned</dt><dd className="text-slate-200">{employee.leadsAssigned || 0}</dd></div><div className="flex justify-between gap-4"><dt className="text-slate-500">Company</dt><dd className="text-slate-200">Employee workspace</dd></div></dl></section></div></div>;
+  return <div className="p-6 overflow-y-auto space-y-6"><header className="pb-4 border-b border-slate-800"><p className="text-sm text-indigo-400">Your profile</p><h1 className="mt-1 text-2xl font-bold text-white">{employee.name}</h1><p className="mt-2 text-sm text-slate-400">{employee.email || 'No email recorded'} · {employee.role}</p></header><div className="grid gap-5 md:grid-cols-4"><ProfileMetric label="Employee ID" value={employee.employeeId} /><ProfileMetric label="Department / role" value={employee.role} /><ProfileMetric label="Joined" value={employee.createdAt ? new Date(employee.createdAt).toLocaleDateString() : 'Not available'} /><ProfileMetric label="Target progress" value={`${progress}%`} /></div><div className="grid gap-6 lg:grid-cols-2"><section className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60"><h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Performance snapshot</h2><div className="mt-5 grid grid-cols-2 gap-4 text-sm"><ProfileMetric label="Target" value={target ? `$${target.toLocaleString()}` : 'Not assigned'} /><ProfileMetric label="Completed" value={achieved ? `$${achieved.toLocaleString()}` : '0'} /><ProfileMetric label="Remaining" value={target ? `$${Math.max(0, target - achieved).toLocaleString()}` : 'Not assigned'} /><ProfileMetric label="Leads converted" value={String(employee.leadsConverted || 0)} /></div><div className="mt-5 h-2 rounded-full bg-slate-800"><div className="h-2 rounded-full bg-indigo-500" style={{ width: `${progress}%` }} /></div></section>
+      {remoteSupportSummary && <section className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60"><h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Remote support summary</h2><div className="mt-5 grid grid-cols-2 gap-4 text-sm"><ProfileMetric label="Total tickets" value={String(remoteSupportSummary.total)} /><ProfileMetric label="Successful" value={String(remoteSupportSummary.successful)} /><ProfileMetric label="Failed" value={String(remoteSupportSummary.failed)} /><ProfileMetric label="Success rate" value={`${remoteSupportSummary.successRate}%`} /></div></section>}
+      <section className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60"><h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Contact information</h2><dl className="mt-5 space-y-3 text-sm"><div className="flex justify-between gap-4"><dt className="text-slate-500">Phone</dt><dd className="text-slate-200">{employee.phone || 'Not available'}</dd></div><div className="flex justify-between gap-4"><dt className="text-slate-500">Leads assigned</dt><dd className="text-slate-200">{employee.leadsAssigned || 0}</dd></div><div className="flex justify-between gap-4"><dt className="text-slate-500">Company</dt><dd className="text-slate-200">Employee workspace</dd></div></dl></section></div></div>;
 }
 
 function ProfileMetric({ label, value }: { label: string; value: string }) { return <div><p className="text-xs uppercase tracking-wider text-slate-500">{label}</p><p className="mt-2 font-semibold text-white">{value}</p></div>; }
+
+function RemoteSupportSection({ records, loading, role }: { records: IRemoteSupportRecord[]; loading: boolean; role?: string; }) {
+  if (loading) {
+    return <div className="p-10 text-center text-slate-400">Loading remote support data...</div>;
+  }
+  if (!records.length) {
+    return <div className="p-10 text-center text-slate-400">No remote support requests found yet.</div>;
+  }
+
+  return (
+    <section className="overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900/80 p-6 text-slate-100 shadow-xl">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.24em] text-indigo-300">Remote support</p>
+          <h2 className="mt-2 text-2xl font-bold text-white">{role === 'TECH_SUPPORT' ? 'Assigned tickets' : 'Support workflow'}</h2>
+          <p className="mt-2 text-sm text-slate-400">Review remote assistance requests tied to leads, sales, and technical handover.</p>
+        </div>
+      </div>
+
+      <div className="grid gap-4">
+        {records.map((record) => (
+          <article key={record._id} className="rounded-3xl border border-slate-800 bg-slate-950/80 p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-white">{record.customerName}</p>
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{new Date(record.dateTime).toLocaleDateString()}</p>
+                <p className="text-sm text-slate-400">{record.issueReason}</p>
+              </div>
+              <div className="space-y-2 text-right">
+                <p className="text-sm text-slate-400">Sales rep: <span className="font-medium text-white">{record.salesEmployeeName}</span></p>
+                <p className="text-sm text-slate-400">Tech support: <span className="font-medium text-white">{record.techSupportEmployeeName || 'Unassigned'}</span></p>
+                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${record.status === 'SUCCESSFUL' ? 'bg-emerald-500/10 text-emerald-300' : record.status === 'FAILED' ? 'bg-rose-500/10 text-rose-300' : record.status === 'IN_PROGRESS' ? 'bg-indigo-500/10 text-indigo-300' : 'bg-slate-700 text-slate-200'}`}>
+                  {record.status.replace('_', ' ')}
+                </span>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ProjectSection({ projects, loading }: { projects: IProjectRecord[]; loading: boolean }) {
+  if (loading) {
+    return <div className="p-10 text-center text-slate-400">Loading project data...</div>;
+  }
+  if (!projects.length) {
+    return <div className="p-10 text-center text-slate-400">No active projects found for your team yet.</div>;
+  }
+
+  return (
+    <section className="overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900/80 p-6 text-slate-100 shadow-xl">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.24em] text-indigo-300">IT projects</p>
+          <h2 className="mt-2 text-2xl font-bold text-white">Project assignments</h2>
+          <p className="mt-2 text-sm text-slate-400">Track current project status, timelines, and progress across your assignments.</p>
+        </div>
+      </div>
+
+      <div className="grid gap-4">
+        {projects.map((project) => (
+          <article key={project._id} className="rounded-3xl border border-slate-800 bg-slate-950/80 p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-lg font-semibold text-white">{project.name}</p>
+                <p className="text-sm text-slate-400">{project.description}</p>
+              </div>
+              <div className="space-y-2 text-right">
+                <p className="text-sm text-slate-400">Timeline: {new Date(project.startDate).toLocaleDateString()} - {new Date(project.endDate).toLocaleDateString()}</p>
+                <p className="text-sm text-slate-400">Progress: <span className="font-medium text-white">{project.progress}%</span></p>
+                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${project.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-300' : project.status === 'IN_PROGRESS' ? 'bg-indigo-500/10 text-indigo-300' : project.status === 'ON_HOLD' ? 'bg-amber-500/10 text-amber-300' : 'bg-slate-700 text-slate-200'}`}>
+                  {project.status.replace('_', ' ')}
+                </span>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}

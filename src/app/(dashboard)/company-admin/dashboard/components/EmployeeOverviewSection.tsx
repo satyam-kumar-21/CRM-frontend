@@ -1,14 +1,17 @@
 'use client';
 
 import { Dispatch, SetStateAction } from 'react';
-import { 
-  ArrowRight, 
-  CalendarCheck, 
-  MessageSquare, 
-  Target, 
-  TrendingUp, 
-  UserPlus, 
-  Users 
+import {
+  ArrowRight,
+  CalendarCheck,
+  MessageSquare,
+  Target,
+  TrendingUp,
+  UserPlus,
+  Users,
+  ShieldCheck,
+  Layers,
+  LifeBuoy,
 } from 'lucide-react';
 import type { ICompanyDashboard } from '@/services/companyService';
 import type { NavSection } from '../types';
@@ -16,17 +19,28 @@ import type { NavSection } from '../types';
 export function EmployeeOverviewSection({
   employee,
   stats,
+  remoteSupportSummary,
+  projectSummary,
   setActiveSection,
 }: {
   employee: ICompanyDashboard['employee'];
   stats: {
+    totalEmployees?: number;
+    activeGroups?: number;
+    recentMessages?: number;
     myLeads: number;
     mySales: number;
     myRevenue: number;
     myFailedSales: number;
     myConnectedLeads: number;
     myPendingLeads: number;
+    remoteSupportTickets?: number;
+    activeProjects?: number;
+    completedProjects?: number;
+    pendingProjects?: number;
   };
+  remoteSupportSummary?: ICompanyDashboard['remoteSupportSummary'];
+  projectSummary?: ICompanyDashboard['projectSummary'];
   setActiveSection: Dispatch<SetStateAction<NavSection>>;
 }) {
   const target = employee.monthlySalesTarget || employee.remoteTarget || 0;
@@ -68,30 +82,42 @@ export function EmployeeOverviewSection({
 
       {/* METRICS */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric 
-          icon={TrendingUp} 
-          label="Revenue" 
-          value={`$${Number(stats.myRevenue ?? 0).toLocaleString()}`} 
-          iconColor="text-emerald-400"
-          iconBg="bg-emerald-500/10"
-        />
-        <Metric 
-          icon={Target} 
-          label="Target" 
-          value={`$${target.toLocaleString()}`} 
-        />
-        <Metric 
-          icon={Users} 
-          label="Leads" 
-          value={stats.myLeads ?? 0} 
-        />
-        <Metric 
-          icon={UserPlus} 
-          label="Sales" 
-          value={stats.mySales ?? 0} 
-          iconColor="text-emerald-400"
-          iconBg="bg-emerald-500/10"
-        />
+        {employee.role === 'SALES' ? (
+          <>
+            <Metric icon={TrendingUp} label="Revenue" value={`$${Number(stats.myRevenue ?? 0).toLocaleString()}`} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" />
+            <Metric icon={Target} label="Target" value={`$${target.toLocaleString()}`} />
+            <Metric icon={Users} label="Leads" value={stats.myLeads ?? 0} />
+            <Metric icon={UserPlus} label="Sales" value={stats.mySales ?? 0} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" />
+          </>
+        ) : employee.role === 'TECH_SUPPORT' ? (
+          <>
+            <Metric icon={LifeBuoy} label="Support tickets" value={remoteSupportSummary?.total ?? 0} />
+            <Metric icon={ShieldCheck} label="Success rate" value={`${remoteSupportSummary?.successRate ?? 0}%`} />
+            <Metric icon={Target} label="Remote target" value={`${target}`} />
+            <Metric icon={Users} label="Assigned leads" value={stats.myLeads ?? 0} />
+          </>
+        ) : employee.role === 'IT' ? (
+          <>
+            <Metric icon={Layers} label="Active projects" value={projectSummary?.active ?? 0} />
+            <Metric icon={TrendingUp} label="Completed" value={projectSummary?.completed ?? 0} />
+            <Metric icon={CalendarCheck} label="Pending" value={projectSummary?.pending ?? 0} />
+            <Metric icon={Users} label="Teams" value={stats.totalEmployees ?? 0} />
+          </>
+        ) : employee.role === 'MANAGER' || employee.role === 'TEAM_LEAD' ? (
+          <>
+            <Metric icon={Users} label="Team members" value={stats.totalEmployees ?? 0} />
+            <Metric icon={TrendingUp} label="Team sales" value={`$${Number(stats.myRevenue ?? 0).toLocaleString()}`} />
+            <Metric icon={Layers} label="Active projects" value={projectSummary?.active ?? 0} />
+            <Metric icon={UserPlus} label="Leads" value={stats.myLeads ?? 0} />
+          </>
+        ) : (
+          <>
+            <Metric icon={TrendingUp} label="Revenue" value={`$${Number(stats.myRevenue ?? 0).toLocaleString()}`} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" />
+            <Metric icon={Users} label="Groups" value={stats.activeGroups ?? 0} />
+            <Metric icon={CalendarCheck} label="Attendance" value={stats.totalEmployees ?? 0} />
+            <Metric icon={MessageSquare} label="Messages" value={stats.recentMessages ?? 0} />
+          </>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
@@ -164,25 +190,31 @@ export function EmployeeOverviewSection({
             Quick actions
           </p>
           <div className="mt-5 grid gap-3">
-            <QuickAction 
-              label="My attendance" 
-              icon={CalendarCheck} 
-              onClick={() => setActiveSection('attendance')} 
-            />
-            <QuickAction 
-              label="My leads" 
-              icon={UserPlus} 
-              onClick={() => setActiveSection('leads')} 
-            />
-            <QuickAction 
-              label="Announcements" 
-              icon={MessageSquare} 
-              onClick={() => setActiveSection('announcements')} 
-            />
+            <QuickAction label="Workspace chat" icon={MessageSquare} onClick={() => setActiveSection('chat')} />
+            {employee.role === 'SALES' && <QuickAction label="My leads" icon={UserPlus} onClick={() => setActiveSection('leads')} />}
+            {(employee.role === 'SALES' || employee.role === 'TECH_SUPPORT') && <QuickAction label="Remote support" icon={LifeBuoy} onClick={() => setActiveSection('remote-support')} />}
+            {(employee.role === 'IT' || employee.role === 'MANAGER' || employee.role === 'TEAM_LEAD') && <QuickAction label="Projects" icon={Layers} onClick={() => setActiveSection('projects')} />}
+            <QuickAction label="Announcements" icon={CalendarCheck} onClick={() => setActiveSection('announcements')} />
           </div>
         </section>
         
       </div>
+
+      {(employee.role === 'TECH_SUPPORT' || employee.role === 'SALES') && remoteSupportSummary ? (
+        <section className="grid gap-4 lg:grid-cols-3">
+          <Metric icon={LifeBuoy} label="Support requests" value={remoteSupportSummary.total} />
+          <Metric icon={ShieldCheck} label="Success rate" value={`${remoteSupportSummary.successRate}%`} />
+          <Metric icon={Target} label="Pending tickets" value={remoteSupportSummary.pending} />
+        </section>
+      ) : null}
+
+      {(employee.role === 'IT' || employee.role === 'MANAGER' || employee.role === 'TEAM_LEAD') && projectSummary ? (
+        <section className="grid gap-4 lg:grid-cols-3">
+          <Metric icon={Layers} label="Active projects" value={projectSummary.active} />
+          <Metric icon={TrendingUp} label="Completed projects" value={projectSummary.completed} />
+          <Metric icon={CalendarCheck} label="Pending projects" value={projectSummary.pending} />
+        </section>
+      ) : null}
     </section>
   );
 }

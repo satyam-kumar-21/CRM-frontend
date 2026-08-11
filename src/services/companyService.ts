@@ -79,6 +79,17 @@ export interface ICompanyDashboard {
     myFailedSales: number;
     myConnectedLeads: number;
     myPendingLeads: number;
+    todayReport?: {
+      leads: number;
+      salesCount: number;
+      salesAmount: number;
+      failedSales: number;
+      remote: {
+        successful: number;
+        failed: number;
+        total: number;
+      };
+    };
   };
   groups: ICompanyGroup[];
   chatEmployees?: Array<Pick<ICompanyEmployee, '_id' | 'employeeId' | 'name' | 'email' | 'role'> & { latestChatAt?: string | null; unreadCount?: number }>;
@@ -87,6 +98,40 @@ export interface ICompanyDashboard {
   announcements?: { unread: number };
   leave?: { pendingRequests: number; myLeaveRequests: number };
   attendanceSummary?: { present?: number; absent?: number; holiday?: number; totalEmployees?: number };
+  remoteSupportSummary?: {
+    total: number;
+    successful: number;
+    failed: number;
+    pending: number;
+    inProgress: number;
+    successRate: number;
+    recent: Array<{
+      _id: string;
+      customerName: string;
+      customerContact: string;
+      salesEmployeeName: string;
+      techSupportEmployeeName?: string;
+      status: string;
+      dateTime: string;
+      issueReason: string;
+    }>;
+  };
+  projectSummary?: {
+    total: number;
+    active: number;
+    completed: number;
+    pending: number;
+    projects: Array<{
+      _id: string;
+      name: string;
+      description: string;
+      status: string;
+      startDate: string;
+      endDate: string;
+      progress: number;
+      assignedEmployees: string[];
+    }>;
+  };
 }
 
 export interface ICompanyEmployee {
@@ -95,7 +140,7 @@ export interface ICompanyEmployee {
   name: string;
   email: string;
   phone: string;
-  role: 'COMPANY_ADMIN' | 'HR' | 'MANAGER' | 'TEAM_LEAD' | 'EMPLOYEE' | 'INTERN';
+  role: 'COMPANY_ADMIN' | 'HR' | 'MANAGER' | 'TEAM_LEAD' | 'EMPLOYEE' | 'INTERN' | 'SALES' | 'TECH_SUPPORT' | 'IT';
   permissions: string[];
   monthlySalesTarget: number;
   remoteTarget?: number;
@@ -109,6 +154,29 @@ export interface ICompanyEmployee {
   salaryAmount?: number;
   salaryMonth?: string;
   salaryCredited?: boolean;
+}
+
+export interface IRemoteSupportRecord {
+  _id: string;
+  customerName: string;
+  customerContact: string;
+  salesEmployeeName: string;
+  techSupportEmployeeName?: string;
+  status: string;
+  dateTime: string;
+  issueReason: string;
+  failedReason?: string;
+}
+
+export interface IProjectRecord {
+  _id: string;
+  name: string;
+  description: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  progress: number;
+  assignedEmployees: string[];
 }
 
 export interface IEmployeeLoginPayload {
@@ -247,6 +315,13 @@ export const companyService = {
   deleteLead: async (id: string) => (await api.delete(`/company/leads/${id}`)).data.data,
   getSales: async (): Promise<ICompanySale[]> => (await api.get('/company/sales', { params: { failed: false, t: Date.now() }, headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache', Expires: '0' } })).data.data,
   getFailedSales: async (): Promise<ICompanySale[]> => (await api.get('/company/sales', { params: { failed: true, t: Date.now() }, headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache', Expires: '0' } })).data.data,
+  getRemoteSupport: async (filters: Record<string, any> = {}): Promise<IRemoteSupportRecord[]> => (await api.get('/company/remote-support', { params: filters })).data.data,
+  createRemoteSupport: async (data: Omit<IRemoteSupportRecord, '_id'>) => (await api.post('/company/remote-support', data)).data.data,
+  updateRemoteSupport: async (id: string, data: Partial<IRemoteSupportRecord>) => (await api.patch(`/company/remote-support/${id}`, data)).data.data,
+  deleteRemoteSupport: async (id: string) => (await api.delete(`/company/remote-support/${id}`)).data.data,
+  getProjects: async (): Promise<IProjectRecord[]> => (await api.get('/company/projects')).data.data,
+  createProject: async (data: Omit<IProjectRecord, '_id'>) => (await api.post('/company/projects', data)).data.data,
+  updateProject: async (id: string, data: Partial<IProjectRecord>) => (await api.patch(`/company/projects/${id}`, data)).data.data,
   createSale: async (data: Omit<ICompanySale, '_id'>): Promise<ICompanySale> => (await api.post('/company/sales', data)).data.data,
   updateSale: async (id: string, data: Omit<ICompanySale, '_id'>): Promise<ICompanySale> => (await api.patch(`/company/sales/${id}`, data)).data.data,
   markSaleFailed: async (id: string, failedReason: string) => (await api.patch(`/company/sales/${id}/failed`, { failed: true, failedReason })).data.data,
