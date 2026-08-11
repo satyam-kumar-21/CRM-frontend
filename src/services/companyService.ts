@@ -80,6 +80,7 @@ export interface ICompanyDashboard {
     myConnectedLeads: number;
     myPendingLeads: number;
     todayReport?: {
+      businessDate: { start: string; end: string };
       leads: number;
       salesCount: number;
       salesAmount: number;
@@ -89,7 +90,15 @@ export interface ICompanyDashboard {
         failed: number;
         total: number;
       };
+      lists: {
+        leads: Array<{ _id: string; name: string; country: string; system: string; createdAt: string }>;
+        sales: Array<{ _id: string; name: string; amount: number; connectedBy: string; saleDate: string; failed?: boolean }>;
+        failed: Array<{ _id: string; name: string; amount: number; connectedBy: string; saleDate: string; failed?: boolean }>;
+        remote: Array<{ _id: string; customerName: string; salesEmployeeName: string; techSupportEmployeeName?: string; status: string; dateTime: string }>;
+      };
     };
+    topSalesEmployees?: Array<{ name: string; totalAmount: number; saleCount: number }>;
+    topTechSupportEmployees?: Array<{ name: string; remoteCount: number }>;
   };
   groups: ICompanyGroup[];
   chatEmployees?: Array<Pick<ICompanyEmployee, '_id' | 'employeeId' | 'name' | 'email' | 'role'> & { latestChatAt?: string | null; unreadCount?: number }>;

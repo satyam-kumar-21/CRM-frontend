@@ -1,6 +1,6 @@
 'use client';
 
-import { Dispatch, SetStateAction } from 'react';
+import { Dispatch, SetStateAction, ElementType } from 'react';
 import { MessageSquare, UserPlus, Users, Target, DollarSign, TrendingUp, CalendarCheck, CheckCircle2, Flag } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { IEmployee, NavSection } from '../types';
@@ -25,6 +25,8 @@ export function CompanyOverviewSection({
     pendingLeads: number;
     totalEmployees: number;
     activeGroups: number;
+    topSalesEmployees?: Array<{ name: string; totalAmount: number; saleCount: number }>;
+    topTechSupportEmployees?: Array<{ name: string; remoteCount: number }>;
   };
   setActiveSection: Dispatch<SetStateAction<NavSection>>;
   onAddEmployee: () => void;
@@ -33,13 +35,22 @@ export function CompanyOverviewSection({
   const achieved = employees.reduce((sum, employee) => sum + employee.salesTarget.monthlyAchieved, 0);
   const percent = totalTarget ? Math.round((achieved / totalTarget) * 100) : 0;
 
-  const chartData = [...employees]
+  const salesEmployees = employees.filter((employee) => employee.role === 'SALES');
+  const chartData = [...salesEmployees]
     .sort((left, right) => right.salesTarget.monthlyAchieved - left.salesTarget.monthlyAchieved)
     .map((employee) => ({
       name: employee.name.split(' ')[0],
       achieved: employee.salesTarget.monthlyAchieved,
       target: employee.salesTarget.monthlyTarget,
     }));
+
+  const topSalesItems = stats.topSalesEmployees?.length
+    ? stats.topSalesEmployees
+    : chartData.slice(0, 3).map((item) => ({
+        name: item.name,
+        totalAmount: item.achieved,
+        saleCount: 0,
+      }));
 
   return (
     <section className="min-h-full space-y-6 overflow-y-auto bg-slate-950 p-6 text-slate-100 lg:p-8">
@@ -135,6 +146,8 @@ export function CompanyOverviewSection({
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={(val) => `$${val}`}
+                  ticks={[5000, 10000, 15000, 20000, 25000]}
+                  domain={[0, 25000]}
                 />
                 <Tooltip
                   cursor={{ fill: '#1e293b', opacity: 0.4 }}
@@ -161,38 +174,65 @@ export function CompanyOverviewSection({
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                 Top performance
               </p>
-              <h2 className="mt-1 text-lg font-semibold text-white">Leading employees</h2>
+              <h2 className="mt-1 text-lg font-semibold text-white">Current month leaders</h2>
             </div>
             <div className="rounded-lg bg-indigo-500/10 p-2">
               <Users className="h-5 w-5 text-indigo-400" />
             </div>
           </div>
-          
-          <div className="mt-6 flex flex-col gap-2">
-            {chartData.slice(0, 5).map((item, index) => (
-              <div
-                key={item.name}
-                className="group flex items-center justify-between rounded-xl border border-transparent p-3 transition-colors hover:border-slate-800 hover:bg-slate-800/50"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-500/10 text-xs font-bold text-indigo-400">
-                    #{index + 1}
-                  </span>
-                  <span className="font-medium text-white group-hover:text-indigo-100 transition-colors">
-                    {item.name}
-                  </span>
+
+          <div className="mt-6 grid gap-4">
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Top sales employees</p>
+                  <h3 className="text-sm font-semibold text-white">Top 3 this month</h3>
                 </div>
-                <span className="font-semibold text-emerald-400">
-                  ${item.achieved.toLocaleString()}
-                </span>
               </div>
-            ))}
-            
-            {chartData.length === 0 && (
-              <div className="flex h-full items-center justify-center py-10 text-sm text-slate-500">
-                No performance data available.
+              <div className="space-y-3">
+                {topSalesItems.slice(0, 3).map((item, index) => (
+                  <div key={`${item.name}-${index}`} className="flex items-center justify-between rounded-xl border border-transparent p-3 transition-colors hover:border-slate-800 hover:bg-slate-800/50">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-500/10 text-xs font-bold text-indigo-400">#{index + 1}</span>
+                      <div>
+                        <p className="font-medium text-white">{item.name}</p>
+                        {item.saleCount !== undefined && <p className="text-xs text-slate-400">{item.saleCount} sales</p>}
+                      </div>
+                    </div>
+                    <span className="font-semibold text-emerald-400">${Number(item.totalAmount).toLocaleString()}</span>
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Tech support</p>
+                  <h3 className="text-sm font-semibold text-white">Top 2 this month</h3>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {(stats.topTechSupportEmployees || []).slice(0, 2).map((item, index) => (
+                  <div key={`${item.name}-${index}`} className="flex items-center justify-between rounded-xl border border-transparent p-3 transition-colors hover:border-slate-800 hover:bg-slate-800/50">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-500/10 text-xs font-bold text-indigo-400">#{index + 1}</span>
+                      <div>
+                        <p className="font-medium text-white">{item.name}</p>
+                        <p className="text-xs text-slate-400">{item.remoteCount} remotes</p>
+                      </div>
+                    </div>
+                    <span className="font-semibold text-emerald-400">{item.remoteCount}</span>
+                  </div>
+                ))}
+
+                {(!stats.topTechSupportEmployees || stats.topTechSupportEmployees.length === 0) && (
+                  <div className="flex h-full items-center justify-center rounded-xl border border-slate-800 p-6 text-sm text-slate-500">
+                    No remote support leaders yet.
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </section>
       </div>
@@ -207,7 +247,7 @@ function Metric({
 }: {
   label: string;
   value: string | number;
-  icon?: any;
+  icon?: ElementType;
 }) {
   return (
     <div className="group rounded-2xl border border-slate-800 bg-slate-900/70 p-6 transition-colors hover:border-slate-700 hover:bg-slate-800/50">

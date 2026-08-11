@@ -7,8 +7,8 @@ import type { ICompanyDashboard } from '@/services/companyService';
 type Props = { report?: ICompanyDashboard['stats']['todayReport'] };
 
 export default function TodaysReportSection({ report }: Props) {
-  const r = report || { leads: 0, salesCount: 0, salesAmount: 0, failedSales: 0, remote: { successful: 0, failed: 0, total: 0 }, lists: { leads: [], sales: [], remote: [] }, businessDate: { start: '', end: '' } } as any;
-  const [activeTab, setActiveTab] = useState<'leads' | 'sales' | 'remote'>('leads');
+  const r = report || { leads: 0, salesCount: 0, salesAmount: 0, failedSales: 0, remote: { successful: 0, failed: 0, total: 0 }, lists: { leads: [], sales: [], failed: [], remote: [] }, businessDate: { start: '', end: '' } } as any;
+  const [activeTab, setActiveTab] = useState<'leads' | 'sales' | 'failed' | 'remote'>('leads');
   const [search, setSearch] = useState('');
 
   const businessDateLabel = useMemo(() => {
@@ -36,6 +36,7 @@ export default function TodaysReportSection({ report }: Props) {
 
   const filteredLeads = (r.lists?.leads || []).filter((l: any) => !search || `${l.name} ${l.country} ${l.system}`.toLowerCase().includes(search.toLowerCase()));
   const filteredSales = (r.lists?.sales || []).filter((s: any) => !search || `${s.name} ${s.connectedBy}`.toLowerCase().includes(search.toLowerCase()));
+  const filteredFailed = (r.lists?.failed || []).filter((s: any) => !search || `${s.name} ${s.connectedBy}`.toLowerCase().includes(search.toLowerCase()));
   const filteredRemote = (r.lists?.remote || []).filter((m: any) => !search || `${m.customerName} ${m.salesEmployeeName} ${m.techSupportEmployeeName}`.toLowerCase().includes(search.toLowerCase()));
 
   return (
@@ -68,6 +69,7 @@ export default function TodaysReportSection({ report }: Props) {
           <div className="flex gap-2">
             <button onClick={() => setActiveTab('leads')} className={`px-4 py-2 rounded-lg ${activeTab === 'leads' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>Leads</button>
             <button onClick={() => setActiveTab('sales')} className={`px-4 py-2 rounded-lg ${activeTab === 'sales' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>Sales</button>
+            <button onClick={() => setActiveTab('failed')} className={`px-4 py-2 rounded-lg ${activeTab === 'failed' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>Failed</button>
             <button onClick={() => setActiveTab('remote')} className={`px-4 py-2 rounded-lg ${activeTab === 'remote' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>Remote</button>
           </div>
           <div className="flex items-center gap-2">
@@ -75,7 +77,17 @@ export default function TodaysReportSection({ report }: Props) {
               <Search className="h-4 w-4 text-slate-400" />
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className="bg-transparent outline-none text-sm text-slate-200" />
             </div>
-            <button onClick={() => downloadCsv('todays-report.csv', activeTab === 'leads' ? filteredLeads : activeTab === 'sales' ? filteredSales : filteredRemote)} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white">Export CSV</button>
+            <button
+              onClick={() => downloadCsv('todays-report.csv',
+                activeTab === 'leads' ? filteredLeads :
+                activeTab === 'sales' ? filteredSales :
+                activeTab === 'failed' ? filteredFailed :
+                filteredRemote
+              )}
+              className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white"
+            >
+              Export CSV
+            </button>
           </div>
         </div>
 
@@ -90,7 +102,14 @@ export default function TodaysReportSection({ report }: Props) {
           {activeTab === 'sales' && (
             <table className="min-w-full text-left text-xs text-slate-300">
               <thead className="bg-slate-950/70 text-slate-400 uppercase"><tr><th className="p-3">Sale</th><th className="p-3">Amount</th><th className="p-3">By</th><th className="p-3">Date</th><th className="p-3">Failed</th></tr></thead>
-              <tbody className="divide-y divide-slate-800/60">{filteredSales.map((s: any) => (<tr key={s._id} className="hover:bg-slate-950/50"><td className="p-3 font-semibold text-white">{s.name}</td><td className="p-3 text-emerald-400">₹{Number(s.amount).toLocaleString()}</td><td className="p-3 text-slate-400">{s.connectedBy}</td><td className="p-3 text-slate-400">{s.saleDate}</td><td className="p-3">{s.failed ? 'Yes' : 'No'}</td></tr>))}</tbody>
+              <tbody className="divide-y divide-slate-800/60">{filteredSales.map((s: any) => (<tr key={s._id} className="hover:bg-slate-950/50"><td className="p-3 font-semibold text-white">{s.name}</td><td className="p-3 text-emerald-400">${Number(s.amount).toLocaleString()}</td><td className="p-3 text-slate-400">{s.connectedBy}</td><td className="p-3 text-slate-400">{s.saleDate}</td><td className="p-3">{s.failed ? 'Yes' : 'No'}</td></tr>))}</tbody>
+            </table>
+          )}
+
+          {activeTab === 'failed' && (
+            <table className="min-w-full text-left text-xs text-slate-300">
+              <thead className="bg-slate-950/70 text-slate-400 uppercase"><tr><th className="p-3">Sale</th><th className="p-3">Amount</th><th className="p-3">By</th><th className="p-3">Date</th><th className="p-3">Failed</th></tr></thead>
+              <tbody className="divide-y divide-slate-800/60">{filteredFailed.map((s: any) => (<tr key={s._id} className="hover:bg-slate-950/50"><td className="p-3 font-semibold text-white">{s.name}</td><td className="p-3 text-emerald-400">${Number(s.amount).toLocaleString()}</td><td className="p-3 text-slate-400">{s.connectedBy}</td><td className="p-3 text-slate-400">{s.saleDate}</td><td className="p-3">{s.failed ? 'Yes' : 'No'}</td></tr>))}</tbody>
             </table>
           )}
 
