@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import type { AxiosProgressEvent } from 'axios';
 
 export interface ICompanyGroup {
   _id: string;
@@ -21,6 +22,12 @@ export interface ICompanyMessage {
   senderName?: string;
   recipientId?: string;
   content: string;
+  messageType?: 'TEXT' | 'IMAGE' | 'FILE' | 'AUDIO';
+  fileName?: string;
+  mimeType?: string;
+  objectKey?: string;
+  fileSize?: number;
+  duration?: number;
   createdAt: string;
   updatedAt?: string;
   isMine?: boolean;
@@ -315,6 +322,15 @@ export const companyService = {
   getConversationMessages: async (conversationId: string): Promise<ICompanyMessage[]> => (await api.get(`/company/conversations/${conversationId}/messages`)).data.data,
   markConversationRead: async (conversationId: string) => (await api.post(`/company/conversations/${conversationId}/read`)).data.data,
   postConversationMessage: async (conversationId: string, data: { content: string }): Promise<ICompanyMessage> => (await api.post(`/company/conversations/${conversationId}/messages`, data)).data.data,
+  uploadConversationAttachment: async (conversationId: string, formData: FormData, onUploadProgress?: (progressEvent: AxiosProgressEvent) => void): Promise<ICompanyMessage> => (await api.post(`/company/conversations/${conversationId}/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress,
+    })).data.data,
+  getAttachmentUrl: async (conversationId: string, messageId: string) => (await api.get(`/company/conversations/${conversationId}/messages/${messageId}/attachment`)).data.data.url,
+  downloadConversationAttachment: async (conversationId: string, messageId: string) => {
+    const response = await api.get(`/company/conversations/${conversationId}/messages/${messageId}/download`, { responseType: 'blob' });
+    return response.data;
+  },
   updateMessage: async (messageId: string, content: string): Promise<ICompanyMessage> => (await api.patch(`/company/messages/${messageId}`, { content })).data.data,
   deleteMessage: async (messageId: string) => (await api.delete(`/company/messages/${messageId}`)).data.data,
 

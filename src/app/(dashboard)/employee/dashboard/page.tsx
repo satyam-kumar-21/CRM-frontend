@@ -8,6 +8,8 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { CompanyAdminSidebar, type CompanyAdminNavItem } from '../../company-admin/dashboard/components/CompanyAdminSidebar';
 import { ChatSection } from '../../company-admin/dashboard/components/workspaceChat';
 import { EmployeeOverviewSection } from '../../company-admin/dashboard/components/EmployeeOverviewSection';
+import ManagerOverviewSection from './components/ManagerOverviewSection';
+import ManagerTodaysReportSection from './components/ManagerTodaysReportSection';
 import { LeadsSection, SalesSection } from '../../company-admin/dashboard/components/SalesLeadsSections';
 import { FailedSalesSection } from '../../company-admin/dashboard/components/FailedSalesSection';
 import { WorkspaceNotificationWatcher } from '../../company-admin/dashboard/components/WorkspaceNotificationWatcher';
@@ -67,19 +69,17 @@ export default function EmployeeDashboardPage() {
       baseNavigation.push({ id: 'remote-support' as NavSection, label: 'Support Tickets', icon: LifeBuoy });
     } else if (role === 'IT') {
       baseNavigation.push({ id: 'projects' as NavSection, label: 'IT Projects', icon: Layers });
-    } else if (role === 'MANAGER' || role === 'TEAM_LEAD') {
-      baseNavigation.push(
-        { id: 'leads' as NavSection, label: 'Team Leads', icon: UserPlus },
-        { id: 'sales' as NavSection, label: 'Team Sales', icon: TrendingUp },
-        { id: 'projects' as NavSection, label: 'Projects', icon: Layers },
-      );
+    }
+
+    if (role === 'MANAGER') {
+      baseNavigation.push({ id: 'todays-report' as NavSection, label: "Today's Report", icon: TrendingUp });
     }
 
     baseNavigation.push(
-      { id: 'attendance' as NavSection, label: 'My Attendance', icon: CalendarCheck },
+      { id: 'attendance' as NavSection, label: 'Attendance', icon: CalendarCheck },
       { id: 'announcements' as NavSection, label: 'Announcements', icon: Bell, count: dashboardQuery.data?.announcements?.unread },
-      { id: 'leave' as NavSection, label: 'My Leave', icon: CalendarCheck, count: dashboardQuery.data?.leave?.myLeaveRequests },
-      { id: 'profile' as NavSection, label: 'Your Profile', icon: UserCircle },
+      { id: 'leave' as NavSection, label: 'Leave', icon: CalendarCheck, count: dashboardQuery.data?.leave?.myLeaveRequests },
+      { id: 'profile' as NavSection, label: 'Profile', icon: UserCircle },
     );
 
     return baseNavigation;
@@ -98,6 +98,13 @@ export default function EmployeeDashboardPage() {
     if (!selectedChatId && (groups[0]?.id || employees[0]?.id)) setSelectedChatId(groups[0]?.id || employees[0].id);
   }, [employees, groups, selectedChatId]);
 
+  const handleSendLead = async (lead: { name: string; country: string; system: string; contactNo: string; otherDetails: string }) => {
+    if (!selectedChatId) {
+      throw new Error('Select a conversation before sending a lead.');
+    }
+    return companyService.postConversationMessage(selectedChatId, { content: JSON.stringify({ type: 'lead-workflow', status: 'pending', lead }) });
+  };
+
   const sendMessage = async () => {
     if (!selectedChatId || !messageInput.trim()) return;
     const sentMessage = await companyService.postConversationMessage(selectedChatId, { content: messageInput.trim() });
@@ -109,6 +116,7 @@ export default function EmployeeDashboardPage() {
   const settingsError = settingsQuery.isError || validationQuery.isError;
   const companySettings = settingsQuery.data as CompanySettingsResponse | undefined;
   const permissions = companySettings?.settings?.routePermissions || {};
+  const canSendLeads = employee?.role === 'MANAGER' || employee?.role === 'COMPANY_ADMIN';
 
   if (settingsLoading || dashboardQuery.isLoading) {
     return <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-100"><p className="text-sm text-slate-400">Loading employee permissions...</p></div>;
@@ -120,8 +128,9 @@ export default function EmployeeDashboardPage() {
 
   return <ProtectedRoute roles={['EMPLOYEE', 'HR', 'MANAGER', 'TEAM_LEAD', 'SALES', 'TECH_SUPPORT', 'IT', 'INTERN']}><div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased"><div className="grid min-h-screen lg:grid-cols-[280px_1fr]"><CompanyAdminSidebar companyName={dashboardQuery.data?.company.name} userName={employee?.name || 'Employee'} userRole={employee?.role || 'Employee'} canOpenSettings={false} routePermissions={permissions} navigationMenu={employeeNavigation} activeSection={activeSection} setActiveSection={setActiveSection} /><main className="flex flex-col h-screen overflow-hidden bg-slate-950">
     <WorkspaceNotificationWatcher dashboardPath="/employee/dashboard" onMessage={handleIncomingChatMessage} />
-    {activeSection === 'overview' && employee && dashboardStats && <EmployeeOverviewSection employee={employee} stats={dashboardStats} remoteSupportSummary={dashboardQuery.data?.remoteSupportSummary} projectSummary={dashboardQuery.data?.projectSummary} setActiveSection={setActiveSection} />}
-    {activeSection === 'chat' && <EmployeeRouteGuard permissionKey="chat" routePermissions={permissions} permissionsLoading={settingsLoading}><ChatSection groups={groups} employees={employees} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={messageInput} setMessageInput={setMessageInput} onSendMessage={sendMessage} currentUserName={employee?.name || 'Employee'} onConversationRead={handleConversationRead} /></EmployeeRouteGuard>}
+    {activeSection === 'overview' && employee && dashboardStats && (employee.role === 'MANAGER' ? <ManagerOverviewSection report={dashboardQuery.data?.stats?.todayReport} /> : <EmployeeOverviewSection employee={employee} stats={dashboardStats} remoteSupportSummary={dashboardQuery.data?.remoteSupportSummary} projectSummary={dashboardQuery.data?.projectSummary} setActiveSection={setActiveSection} />)}
+    {activeSection === 'chat' && <EmployeeRouteGuard permissionKey="chat" routePermissions={permissions} permissionsLoading={settingsLoading}><ChatSection groups={groups} employees={employees} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={messageInput} setMessageInput={setMessageInput} onSendMessage={sendMessage} onSendLead={canSendLeads ? handleSendLead : undefined} currentUserName={employee?.name || 'Employee'} isAdmin={canSendLeads} onConversationRead={handleConversationRead} /></EmployeeRouteGuard>}
+    {activeSection === 'todays-report' && employee?.role === 'MANAGER' && <ManagerTodaysReportSection report={dashboardQuery.data?.stats?.todayReport} employees={dashboardQuery.data?.chatEmployees || []} />}
     {activeSection === 'leads' && <EmployeeRouteGuard permissionKey="leads" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><LeadsSection readOnly /></div></EmployeeRouteGuard>}
     {activeSection === 'sales' && <EmployeeRouteGuard permissionKey="sales" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><SalesSection readOnly /></div></EmployeeRouteGuard>}
     {activeSection === 'failed-sales' && <EmployeeRouteGuard permissionKey="failed-sales" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><FailedSalesSection /></div></EmployeeRouteGuard>}

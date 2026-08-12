@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { io } from 'socket.io-client';
 import { companyService, ICompanyMessage, type ICompanyLead, type LeadWorkflow } from '@/services/companyService';
 import { getBusinessDateString } from '@/lib/businessDate';
+import { ChatAttachmentInput } from './ChatAttachmentInput';
+import { ChatAttachmentPreview } from './ChatAttachmentPreview';
 import type { ChatFilter, IEmployee, IGroupChannel } from '../types';
 
 type ChatSectionProps = {
@@ -32,10 +34,14 @@ export function ChatSection(props: ChatSectionProps) {
   const [editingText, setEditingText] = useState('');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [chatSearch, setChatSearch] = useState('');
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [leadForm, setLeadForm] = useState({ name: '', country: '', system: '', contactNo: '', otherDetails: '' });
   const [saleForms, setSaleForms] = useState<Record<string, { amount: string; paymentMethod: NonNullable<LeadWorkflow['paymentMethod']> }>>({});
   const previousCount = useRef(0);
+
+  const dedupeMessages = (messages: ICompanyMessage[]) => Array.from(new Map(messages.map((message) => [message._id, message])).values());
   const bottomRef = useRef<HTMLDivElement>(null);
   const selectedEmployee = employees.find((employee) => employee.id === selectedChatId);
   const selectedGroup = groups.find((group) => group.id === selectedChatId);
@@ -57,7 +63,7 @@ export function ChatSection(props: ChatSectionProps) {
         const next = await companyService.getConversationMessages(selectedChatId);
         if (!active) return;
         previousCount.current = next.length;
-        setMessages(next);
+        setMessages(dedupeMessages(next));
       } catch {
         if (active) setMessages([]);
       }
@@ -79,7 +85,7 @@ export function ChatSection(props: ChatSectionProps) {
       if (!active || !message?._id) return;
       const messageConversationId = message.conversationId || message.groupId;
       if (messageConversationId !== selectedChatId) return;
-      setMessages((current) => current.some((item) => item._id === message._id) ? current : [...current, message]);
+      setMessages((current) => dedupeMessages([...current, message]));
       if (!message.isMine) {
         markRead();
       }
@@ -109,7 +115,7 @@ export function ChatSection(props: ChatSectionProps) {
     const optimisticContent = messageInput.trim();
     if (!optimisticContent) return;
     const leadValues = optimisticContent.split(',');
-    const shortcutLead = isAdmin && onSendLead && leadValues.length >= 5 ? {
+    const shortcutLead = onSendLead && leadValues.length >= 5 ? {
       name: leadValues[0].trim(),
       country: leadValues[1].trim(),
       system: leadValues[2].trim(),
@@ -148,6 +154,53 @@ export function ChatSection(props: ChatSectionProps) {
     } catch (error: any) {
       setMessages((current) => current.filter((message) => message._id !== optimisticId));
       toast.error(error.response?.data?.message || 'Unable to send message');
+    }
+  };
+
+  const uploadAttachment = async (file: File, type: 'IMAGE' | 'FILE' | 'AUDIO', duration?: number) => {
+    if (!selectedChatId) {
+      toast.error('Select a conversation first.');
+      return;
+    }
+
+    const optimisticId = `upload-${Date.now()}`;
+    const optimisticMessage: ICompanyMessage = {
+      _id: optimisticId,
+      senderId: 'pending',
+      content: file.name,
+      messageType: type,
+      fileName: file.name,
+      mimeType: file.type,
+      fileSize: file.size,
+      createdAt: new Date().toISOString(),
+      isMine: true,
+      isSeen: false,
+      conversationId: selectedChatId,
+    };
+
+    setMessages((current) => [...current, optimisticMessage]);
+    setUploading(true);
+    setUploadProgress(0);
+
+    try {
+      const formData = new FormData();
+      formData.append('attachment', file);
+      if (typeof duration === 'number') {
+        formData.append('duration', String(duration));
+      }
+
+      const sentMessage = await companyService.uploadConversationAttachment(selectedChatId, formData, (progressEvent) => {
+        if (progressEvent.total) {
+          setUploadProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total));
+        }
+      });
+      setMessages((current) => dedupeMessages(current.map((message) => message._id === optimisticId ? { ...sentMessage, isMine: true } : message)));
+    } catch (error: any) {
+      setMessages((current) => current.filter((message) => message._id !== optimisticId));
+      toast.error(error.response?.data?.message || 'Unable to upload attachment');
+    } finally {
+      setUploading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -227,10 +280,16 @@ export function ChatSection(props: ChatSectionProps) {
     <section className="flex min-h-0 flex-col bg-slate-950">
       <header className="border-b border-slate-800 bg-slate-900/60 p-4"><p className="text-[10px] uppercase tracking-widest text-indigo-400">Encrypted Enterprise Channel</p><h2 className="mt-1 text-base font-bold text-white">{title}</h2><p className="text-xs text-slate-500">{selectedEmployee ? `${selectedEmployee.role} · Direct conversation` : 'Workspace group conversation'}</p></header>
       <div className="flex-1 space-y-3 overflow-y-auto p-5">
-        {messages.length ? messages.map((message) => <div key={message._id} className={`flex ${message.isMine ? 'justify-end' : 'justify-start'}`}>
+        {messages.length ? messages.map((message, index) => <div key={`${message._id}-${index}`} className={`flex ${message.isMine ? 'justify-end' : 'justify-start'}`}>
           <div className={`relative max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${message.isMine ? 'bg-indigo-600/80 text-white' : 'bg-slate-900 text-slate-200'}`}>
             {editingId === message._id ? <div className="flex gap-2"><input autoFocus value={editingText} onChange={(event) => setEditingText(event.target.value)} className="rounded bg-slate-950 px-2 py-1 text-white" /><button aria-label="Save message" onClick={() => void editMessage(message._id)}><Check className="h-4 w-4" /></button><button aria-label="Cancel editing" onClick={() => setEditingId(null)}><X className="h-4 w-4" /></button></div> : <>
-              {(() => { const workflow = parseWorkflow(message.content); if (!workflow) return <p>{message.content}</p>; return <div className="space-y-2"><p className="font-bold">📌 Lead</p><p>Lead Name: {workflow.lead.name}<br />Country: {workflow.lead.country}<br />System: {workflow.lead.system}<br />Contact: {workflow.lead.contactNo}{workflow.lead.otherDetails && <><br />Details: {workflow.lead.otherDetails}</>}</p>{workflow.status === 'pending' && !message.isMine && <div className="flex gap-2"><button onClick={() => void actOnWorkflow(message, workflow, 'accept')} className="rounded bg-emerald-600 px-2 py-1 text-xs">Accept</button><button onClick={() => void actOnWorkflow(message, workflow, 'decline')} className="rounded bg-rose-600 px-2 py-1 text-xs">Decline</button></div>}{workflow.status === 'pending' && message.isMine && <p className="text-xs text-slate-300">Awaiting response</p>}{workflow.status === 'declined' && <p className="font-semibold text-rose-300">Declined</p>}{workflow.status !== 'pending' && workflow.status !== 'declined' && <><p>Accepted By: {workflow.acceptedBy}</p>{workflow.status === 'accepted' && !message.isMine && <div><p className="mb-1">Connected?</p><div className="flex gap-2"><button onClick={() => void actOnWorkflow(message, workflow, 'connected-yes')} className="rounded bg-emerald-600 px-2 py-1 text-xs">Yes</button><button onClick={() => void actOnWorkflow(message, workflow, 'connected-no')} className="rounded bg-slate-600 px-2 py-1 text-xs">No</button></div></div>}{workflow.status !== 'accepted' && <p>Connected: {workflow.connected === 'yes' ? 'Yes' : 'No'}</p>}{workflow.status === 'connected' && workflow.isSale === undefined && !message.isMine && <div><p className="mb-1">Is Sale?</p><div className="flex gap-2"><button onClick={() => void actOnWorkflow(message, workflow, 'sale-yes')} className="rounded bg-emerald-600 px-2 py-1 text-xs">Yes</button><button onClick={() => void actOnWorkflow(message, workflow, 'sale-no')} className="rounded bg-slate-600 px-2 py-1 text-xs">No</button></div></div>}{workflow.isSale === 'no' && <p>Sale: No</p>}{workflow.isSale === 'yes' && <p>Sale: Yes<br />Sale Amount: {workflow.saleAmount?.toLocaleString()}<br />Closed By: {workflow.closedBy}<br /><b>✅ Sale Completed</b></p>}</>}</div>; })()}
+              {(() => {
+                if (message.messageType && message.objectKey) {
+                  return <ChatAttachmentPreview message={message} conversationId={selectedChatId} />;
+                }
+                const workflow = parseWorkflow(message.content);
+                if (!workflow) return <p>{message.content}</p>;
+                return <div className="space-y-2"><p className="font-bold">📌 Lead</p><p>Lead Name: {workflow.lead.name}<br />Country: {workflow.lead.country}<br />System: {workflow.lead.system}<br />Contact: {workflow.lead.contactNo}{workflow.lead.otherDetails && <><br />Details: {workflow.lead.otherDetails}</>}</p>{workflow.status === 'pending' && !message.isMine && <div className="flex gap-2"><button onClick={() => void actOnWorkflow(message, workflow, 'accept')} className="rounded bg-emerald-600 px-2 py-1 text-xs">Accept</button><button onClick={() => void actOnWorkflow(message, workflow, 'decline')} className="rounded bg-rose-600 px-2 py-1 text-xs">Decline</button></div>}{workflow.status === 'pending' && message.isMine && <p className="text-xs text-slate-300">Awaiting response</p>}{workflow.status === 'declined' && <p className="font-semibold text-rose-300">Declined</p>}{workflow.status !== 'pending' && workflow.status !== 'declined' && <><p>Accepted By: {workflow.acceptedBy}</p>{workflow.status === 'accepted' && !message.isMine && <div><p className="mb-1">Connected?</p><div className="flex gap-2"><button onClick={() => void actOnWorkflow(message, workflow, 'connected-yes')} className="rounded bg-emerald-600 px-2 py-1 text-xs">Yes</button><button onClick={() => void actOnWorkflow(message, workflow, 'connected-no')} className="rounded bg-slate-600 px-2 py-1 text-xs">No</button></div></div>}{workflow.status !== 'accepted' && <p>Connected: {workflow.connected === 'yes' ? 'Yes' : 'No'}</p>}{workflow.status === 'connected' && workflow.isSale === undefined && !message.isMine && <div><p className="mb-1">Is Sale?</p><div className="flex gap-2"><button onClick={() => void actOnWorkflow(message, workflow, 'sale-yes')} className="rounded bg-emerald-600 px-2 py-1 text-xs">Yes</button><button onClick={() => void actOnWorkflow(message, workflow, 'sale-no')} className="rounded bg-slate-600 px-2 py-1 text-xs">No</button></div></div>}{workflow.isSale === 'no' && <p>Sale: No</p>}{workflow.isSale === 'yes' && <p>Sale: Yes<br />Sale Amount: {workflow.saleAmount?.toLocaleString()}<br />Closed By: {workflow.closedBy}<br /><b>✅ Sale Completed</b></p>}</>}</div>; })()}
               <time className="mt-1 flex items-center gap-1 text-[10px] text-slate-400"><span>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>{message.isEdited && <span>· edited</span>}{message.isMine && (message.isSeen ? <CheckCheck className="h-3.5 w-3.5 text-sky-300" aria-label="Seen" /> : <Check className="h-3.5 w-3.5 text-slate-300" aria-label="Sent" />)}</time>
               {!message.isMine && <p className="mt-0.5 text-[10px] text-slate-400">{message.senderName || 'Workspace member'}</p>}
               {message.isMine && <div className="absolute -right-2 -top-2"><button aria-label="Message options" title="Message options" onClick={() => setOpenMenuId((current) => current === message._id ? null : message._id)} className="rounded-full bg-slate-700 p-1 text-slate-200 shadow hover:bg-slate-600"><MoreVertical className="h-3.5 w-3.5" /></button>{openMenuId === message._id && <div className="absolute right-0 top-7 z-10 w-28 overflow-hidden rounded-lg border border-slate-700 bg-slate-900 py-1 text-xs shadow-xl"><button className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-200 hover:bg-slate-800" onClick={() => { setEditingId(message._id); setEditingText(message.content); setOpenMenuId(null); }}><Pencil className="h-3.5 w-3.5" /> Edit</button><button className="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-300 hover:bg-slate-800" onClick={() => { setOpenMenuId(null); void deleteMessage(message._id); }}><Trash2 className="h-3.5 w-3.5" /> Delete</button></div>}</div>}
@@ -240,7 +299,28 @@ export function ChatSection(props: ChatSectionProps) {
       </div>
       {saleMessage && saleWorkflow && saleForms[saleMessage._id] && <form onSubmit={async (event) => { event.preventDefault(); const form = saleForms[saleMessage._id]; if (!form.amount) { toast.error('Enter a sale amount'); return; } await actOnWorkflow(saleMessage, saleWorkflow, 'sale-yes', form); setSaleForms((current) => { const next = { ...current }; delete next[saleMessage._id]; return next; }); }} className="border-t border-emerald-500/20 bg-slate-900/95 p-4"><div className="mx-auto flex max-w-2xl flex-col gap-3 rounded-xl border border-slate-700 bg-slate-950 p-4 shadow-lg"><div><p className="text-sm font-semibold text-white">Complete Sale</p><p className="mt-1 text-xs text-slate-400">{saleWorkflow.lead.name} · enter the final amount and payment mode.</p></div><div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1 text-xs text-slate-400"><span>Sale Amount</span><input required min="0" step="0.01" type="number" value={saleForms[saleMessage._id].amount} onChange={(event) => setSaleForms((current) => ({ ...current, [saleMessage._id]: { ...current[saleMessage._id], amount: event.target.value } }))} className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" placeholder="0.00" /></label><label className="space-y-1 text-xs text-slate-400"><span>Payment Mode</span><select required value={saleForms[saleMessage._id].paymentMethod} onChange={(event) => setSaleForms((current) => ({ ...current, [saleMessage._id]: { ...current[saleMessage._id], paymentMethod: event.target.value as NonNullable<LeadWorkflow['paymentMethod']> } }))} className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"><option value="Card">Card</option><option value="Check">Check</option><option value="Wire Transfer">Wire Transfer</option><option value="Cash">Cash</option><option value="Other">Other</option></select></label></div><div className="flex justify-end gap-2"><button type="button" onClick={() => setSaleForms({})} className="rounded-lg bg-slate-700 px-3 py-2 text-xs text-white">Cancel</button><button className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white"><Check className="mr-1 inline h-3.5 w-3.5" />Confirm Sale</button></div></div></form>}
       {showLeadForm && <form onSubmit={async (event) => { event.preventDefault(); if (!onSendLead) return; try { await onSendLead(leadForm); setLeadForm({ name: '', country: '', system: '', contactNo: '', otherDetails: '' }); setShowLeadForm(false); } catch (error: any) { toast.error(error.response?.data?.message || 'Unable to send lead'); } }} className="grid gap-2 border-t border-slate-800 bg-slate-900/80 p-4 sm:grid-cols-5">{(['name', 'country', 'system', 'contactNo', 'otherDetails'] as const).map((key) => <input key={key} required={key !== 'otherDetails'} placeholder={key === 'contactNo' ? 'Contact No' : key === 'otherDetails' ? 'Other Details' : key.replace(/([A-Z])/g, ' $1')} value={leadForm[key]} onChange={(event) => setLeadForm((current) => ({ ...current, [key]: event.target.value }))} className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-xs text-white" />)}<button className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white sm:col-span-5">Send Lead</button></form>}
-      <div className="flex gap-2 border-t border-slate-800 bg-slate-900/40 p-4">{isAdmin && <button aria-label="Send lead" title="Send lead" onClick={() => setShowLeadForm((current) => !current)} className="rounded-xl bg-amber-600 px-3 text-white"><UserPlus className="h-4 w-4" /></button>}<input value={messageInput} onChange={(event) => setMessageInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void sendMessage(); }} placeholder={isAdmin ? 'Message or: Name, Country, System, Contact No, Details' : `Message ${title}`} className="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white outline-none focus:border-indigo-500" disabled={!selectedChatId} /><button aria-label="Send message" onClick={() => void sendMessage()} className="rounded-xl bg-indigo-600 px-4 text-white hover:bg-indigo-500" disabled={!selectedChatId || !messageInput.trim()}><Send className="h-4 w-4" /></button></div>
+      <div className="border-t border-slate-800 bg-slate-900/40 p-4">
+        <div className="flex items-start gap-3">
+          {onSendLead && selectedEmployee?.role === 'SALES' && <button aria-label="Send lead" title="Send lead" onClick={() => setShowLeadForm((current) => !current)} className="rounded-xl bg-amber-600 px-3 py-2 text-white"><UserPlus className="h-4 w-4" /></button>}
+          <div className="flex-1">
+            <ChatAttachmentInput
+              isDisabled={!selectedChatId || uploading}
+              onSendText={sendMessage}
+              onFileSelected={uploadAttachment}
+              messageInput={messageInput}
+              setMessageInput={setMessageInput}
+            />
+            {uploading && uploadProgress !== null && (
+              <div className="mt-3 rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-300">
+                Uploading attachment: {uploadProgress}%
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
+                  <div className="h-full rounded-full bg-indigo-500" style={{ width: `${uploadProgress}%` }} />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </section>
   </div>;
 }
