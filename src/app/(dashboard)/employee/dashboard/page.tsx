@@ -17,6 +17,7 @@ import EmployeeRouteGuard from '@/components/EmployeeRouteGuard';
 import { AttendanceSection } from '../../company-admin/dashboard/components/AttendanceSection';
 import { AnnouncementsSection } from '../../company-admin/dashboard/components';
 import { LeaveSection } from '../../company-admin/dashboard/components/LeaveSection';
+import { RemoteSupportSection } from '../../company-admin/dashboard/components/RemoteSupportSection';
 import { useCompanySettings, useCompanyValidation, type CompanySettingsResponse } from '@/lib/useCompanySettings';
 import type { ChatFilter, IEmployee, IGroupChannel, NavSection } from '../../company-admin/dashboard/types';
 
@@ -87,8 +88,11 @@ export default function EmployeeDashboardPage() {
 
   const handleIncomingChatMessage = (message: ICompanyMessage) => {
     const conversationId = message.conversationId || message.groupId;
-    if (!conversationId || message.isMine || conversationId === selectedChatId) return;
-    setChatActivity((current) => ({ ...current, [conversationId]: { latestChatAt: message.createdAt, unreadCount: (current[conversationId]?.unreadCount || 0) + 1 } }));
+    if (!conversationId || message.isMine) return;
+    const activityAt = message.createdAt || new Date().toISOString();
+    const isActiveChat = conversationId === selectedChatId;
+    // Always update latestChatAt so list re-sorts; only bump unread for background chats
+    setChatActivity((current) => ({ ...current, [conversationId]: { latestChatAt: activityAt, unreadCount: isActiveChat ? (current[conversationId]?.unreadCount || 0) : (current[conversationId]?.unreadCount || 0) + 1 } }));
   };
   const handleConversationRead = (conversationId: string) => {
     setChatActivity((current) => ({ ...current, [conversationId]: { latestChatAt: current[conversationId]?.latestChatAt || new Date().toISOString(), unreadCount: 0 } }));
@@ -109,6 +113,9 @@ export default function EmployeeDashboardPage() {
     if (!selectedChatId || !messageInput.trim()) return;
     const sentMessage = await companyService.postConversationMessage(selectedChatId, { content: messageInput.trim() });
     setMessageInput('');
+    // Immediately bump latestChatAt so list re-orders after sending
+    const now = new Date().toISOString();
+    setChatActivity((current) => ({ ...current, [selectedChatId]: { latestChatAt: now, unreadCount: current[selectedChatId]?.unreadCount || 0 } }));
     return sentMessage;
   };
 
@@ -129,12 +136,12 @@ export default function EmployeeDashboardPage() {
   return <ProtectedRoute roles={['EMPLOYEE', 'HR', 'MANAGER', 'TEAM_LEAD', 'SALES', 'TECH_SUPPORT', 'IT', 'INTERN']}><div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased"><div className="grid min-h-screen lg:grid-cols-[280px_1fr]"><CompanyAdminSidebar companyName={dashboardQuery.data?.company.name} userName={employee?.name || 'Employee'} userRole={employee?.role || 'Employee'} canOpenSettings={false} routePermissions={permissions} navigationMenu={employeeNavigation} activeSection={activeSection} setActiveSection={setActiveSection} /><main className="flex flex-col h-screen overflow-hidden bg-slate-950">
     <WorkspaceNotificationWatcher dashboardPath="/employee/dashboard" onMessage={handleIncomingChatMessage} />
     {activeSection === 'overview' && employee && dashboardStats && (employee.role === 'MANAGER' ? <ManagerOverviewSection report={dashboardQuery.data?.stats?.todayReport} /> : <EmployeeOverviewSection employee={employee} stats={dashboardStats} remoteSupportSummary={dashboardQuery.data?.remoteSupportSummary} projectSummary={dashboardQuery.data?.projectSummary} setActiveSection={setActiveSection} />)}
-    {activeSection === 'chat' && <EmployeeRouteGuard permissionKey="chat" routePermissions={permissions} permissionsLoading={settingsLoading}><ChatSection groups={groups} employees={employees} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={messageInput} setMessageInput={setMessageInput} onSendMessage={sendMessage} onSendLead={canSendLeads ? handleSendLead : undefined} currentUserName={employee?.name || 'Employee'} isAdmin={canSendLeads} onConversationRead={handleConversationRead} /></EmployeeRouteGuard>}
+    {activeSection === 'chat' && <EmployeeRouteGuard permissionKey="chat" routePermissions={permissions} permissionsLoading={settingsLoading}><ChatSection groups={groups} employees={employees} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={messageInput} setMessageInput={setMessageInput} onSendMessage={sendMessage} onSendLead={canSendLeads ? handleSendLead : undefined} currentUserId={employee?._id} currentUserName={employee?.name || 'Employee'} currentUserRole={employee?.role} isAdmin={canSendLeads} onConversationRead={handleConversationRead} /></EmployeeRouteGuard>}
     {activeSection === 'todays-report' && employee?.role === 'MANAGER' && <ManagerTodaysReportSection report={dashboardQuery.data?.stats?.todayReport} employees={dashboardQuery.data?.chatEmployees || []} />}
     {activeSection === 'leads' && <EmployeeRouteGuard permissionKey="leads" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><LeadsSection readOnly /></div></EmployeeRouteGuard>}
     {activeSection === 'sales' && <EmployeeRouteGuard permissionKey="sales" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><SalesSection readOnly /></div></EmployeeRouteGuard>}
     {activeSection === 'failed-sales' && <EmployeeRouteGuard permissionKey="failed-sales" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><FailedSalesSection /></div></EmployeeRouteGuard>}
-    {activeSection === 'remote-support' && <EmployeeRouteGuard permissionKey="remote-support" routePermissions={permissions} permissionsLoading={settingsLoading}><RemoteSupportSection records={remoteSupportQuery.data || []} loading={remoteSupportQuery.isLoading} role={employee?.role} /></EmployeeRouteGuard>}
+    {activeSection === 'remote-support' && <EmployeeRouteGuard permissionKey="remote-support" routePermissions={permissions} permissionsLoading={settingsLoading}><RemoteSupportSection role={employee?.role} /></EmployeeRouteGuard>}
     {activeSection === 'projects' && <EmployeeRouteGuard permissionKey="projects" routePermissions={permissions} permissionsLoading={settingsLoading}><ProjectSection projects={projectQuery.data || []} loading={projectQuery.isLoading} /></EmployeeRouteGuard>}
     {activeSection === 'attendance' && <EmployeeRouteGuard permissionKey="attendance" routePermissions={permissions} permissionsLoading={settingsLoading}><AttendanceSection readOnly /></EmployeeRouteGuard>}
     {activeSection === 'announcements' && <EmployeeRouteGuard permissionKey="announcements" routePermissions={permissions} permissionsLoading={settingsLoading}><AnnouncementsSection readOnly /></EmployeeRouteGuard>}
@@ -144,57 +151,91 @@ export default function EmployeeDashboardPage() {
 }
 
 function EmployeeProfile({ employee, remoteSupportSummary, projectSummary }: { employee: ICompanyDashboard['employee']; remoteSupportSummary?: ICompanyDashboard['remoteSupportSummary']; projectSummary?: ICompanyDashboard['projectSummary']; }) {
-  const target = employee.monthlySalesTarget || employee.remoteTarget || 0;
-  const achieved = employee.monthlySalesAchieved || 0;
-  const progress = target ? Math.min(100, Math.round((achieved / target) * 100)) : 0;
-  return <div className="p-6 overflow-y-auto space-y-6"><header className="pb-4 border-b border-slate-800"><p className="text-sm text-indigo-400">Your profile</p><h1 className="mt-1 text-2xl font-bold text-white">{employee.name}</h1><p className="mt-2 text-sm text-slate-400">{employee.email || 'No email recorded'} · {employee.role}</p></header><div className="grid gap-5 md:grid-cols-4"><ProfileMetric label="Employee ID" value={employee.employeeId} /><ProfileMetric label="Department / role" value={employee.role} /><ProfileMetric label="Joined" value={employee.createdAt ? new Date(employee.createdAt).toLocaleDateString() : 'Not available'} /><ProfileMetric label="Target progress" value={`${progress}%`} /></div><div className="grid gap-6 lg:grid-cols-2"><section className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60"><h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Performance snapshot</h2><div className="mt-5 grid grid-cols-2 gap-4 text-sm"><ProfileMetric label="Target" value={target ? `$${target.toLocaleString()}` : 'Not assigned'} /><ProfileMetric label="Completed" value={achieved ? `$${achieved.toLocaleString()}` : '0'} /><ProfileMetric label="Remaining" value={target ? `$${Math.max(0, target - achieved).toLocaleString()}` : 'Not assigned'} /><ProfileMetric label="Leads converted" value={String(employee.leadsConverted || 0)} /></div><div className="mt-5 h-2 rounded-full bg-slate-800"><div className="h-2 rounded-full bg-indigo-500" style={{ width: `${progress}%` }} /></div></section>
-      {remoteSupportSummary && <section className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60"><h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Remote support summary</h2><div className="mt-5 grid grid-cols-2 gap-4 text-sm"><ProfileMetric label="Total tickets" value={String(remoteSupportSummary.total)} /><ProfileMetric label="Successful" value={String(remoteSupportSummary.successful)} /><ProfileMetric label="Failed" value={String(remoteSupportSummary.failed)} /><ProfileMetric label="Success rate" value={`${remoteSupportSummary.successRate}%`} /></div></section>}
-      <section className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60"><h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Contact information</h2><dl className="mt-5 space-y-3 text-sm"><div className="flex justify-between gap-4"><dt className="text-slate-500">Phone</dt><dd className="text-slate-200">{employee.phone || 'Not available'}</dd></div><div className="flex justify-between gap-4"><dt className="text-slate-500">Leads assigned</dt><dd className="text-slate-200">{employee.leadsAssigned || 0}</dd></div><div className="flex justify-between gap-4"><dt className="text-slate-500">Company</dt><dd className="text-slate-200">Employee workspace</dd></div></dl></section></div></div>;
+  const isTechSupport = employee.role === 'TECH_SUPPORT';
+  const isSales = employee.role === 'SALES';
+
+  const remoteTarget = employee.remoteTarget || 0;
+  const remoteSuccessful = remoteSupportSummary?.successful || 0;
+  const remoteProgress = remoteTarget ? Math.min(100, Math.round((remoteSuccessful / remoteTarget) * 100)) : 0;
+
+  const salesTarget = employee.monthlySalesTarget || 0;
+  const salesAchieved = employee.monthlySalesAchieved || 0;
+  const salesProgress = salesTarget ? Math.min(100, Math.round((salesAchieved / salesTarget) * 100)) : 0;
+
+  const progress = isTechSupport ? remoteProgress : salesProgress;
+
+  return (
+    <div className="p-6 overflow-y-auto space-y-6">
+      <header className="pb-4 border-b border-slate-800">
+        <p className="text-sm text-indigo-400">Your profile</p>
+        <h1 className="mt-1 text-2xl font-bold text-white">{employee.name}</h1>
+        <p className="mt-2 text-sm text-slate-400">{employee.email || 'No email recorded'} · {employee.role}</p>
+      </header>
+
+      <div className="grid gap-5 md:grid-cols-4">
+        <ProfileMetric label="Employee ID" value={employee.employeeId} />
+        <ProfileMetric label="Department / role" value={employee.role} />
+        <ProfileMetric label="Joined" value={employee.createdAt ? new Date(employee.createdAt).toLocaleDateString() : 'Not available'} />
+        <ProfileMetric label="Target progress" value={`${progress}%`} />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {isTechSupport ? (
+          <section className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-cyan-300">Remote Support Performance</h2>
+            <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
+              <ProfileMetric label="Remote Target" value={`${remoteTarget} remotes`} />
+              <ProfileMetric label="Completed" value={String(remoteSuccessful)} />
+              <ProfileMetric label="Remaining" value={String(Math.max(0, remoteTarget - remoteSuccessful))} />
+              <ProfileMetric label="Success Rate" value={`${remoteSupportSummary?.successRate || 0}%`} />
+            </div>
+            <div className="mt-5 h-2 rounded-full bg-slate-800">
+              <div className="h-2 rounded-full bg-cyan-500" style={{ width: `${progress}%` }} />
+            </div>
+          </section>
+        ) : (
+          <section className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Performance snapshot</h2>
+            <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
+              <ProfileMetric label="Target" value={salesTarget ? `$${salesTarget.toLocaleString()}` : 'Not assigned'} />
+              <ProfileMetric label="Completed" value={salesAchieved ? `$${salesAchieved.toLocaleString()}` : '0'} />
+              <ProfileMetric label="Remaining" value={salesTarget ? `$${Math.max(0, salesTarget - salesAchieved).toLocaleString()}` : 'Not assigned'} />
+              <ProfileMetric label="Leads converted" value={String(employee.leadsConverted || 0)} />
+            </div>
+            <div className="mt-5 h-2 rounded-full bg-slate-800">
+              <div className="h-2 rounded-full bg-indigo-500" style={{ width: `${progress}%` }} />
+            </div>
+          </section>
+        )}
+
+        {remoteSupportSummary && !isTechSupport && (
+          <section className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Remote support summary</h2>
+            <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
+              <ProfileMetric label="Total tickets" value={String(remoteSupportSummary.total)} />
+              <ProfileMetric label="Successful" value={String(remoteSupportSummary.successful)} />
+              <ProfileMetric label="Failed" value={String(remoteSupportSummary.failed)} />
+              <ProfileMetric label="Success rate" value={`${remoteSupportSummary.successRate}%`} />
+            </div>
+          </section>
+        )}
+
+        <section className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Contact information</h2>
+          <dl className="mt-5 space-y-3 text-sm">
+            <div className="flex justify-between gap-4"><dt className="text-slate-500">Phone</dt><dd className="text-slate-200">{employee.phone || 'Not available'}</dd></div>
+            {isSales && (
+              <div className="flex justify-between gap-4"><dt className="text-slate-500">Leads assigned</dt><dd className="text-slate-200">{employee.leadsAssigned || 0}</dd></div>
+            )}
+            <div className="flex justify-between gap-4"><dt className="text-slate-500">Company</dt><dd className="text-slate-200">Employee workspace</dd></div>
+          </dl>
+        </section>
+      </div>
+    </div>
+  );
 }
 
 function ProfileMetric({ label, value }: { label: string; value: string }) { return <div><p className="text-xs uppercase tracking-wider text-slate-500">{label}</p><p className="mt-2 font-semibold text-white">{value}</p></div>; }
-
-function RemoteSupportSection({ records, loading, role }: { records: IRemoteSupportRecord[]; loading: boolean; role?: string; }) {
-  if (loading) {
-    return <div className="p-10 text-center text-slate-400">Loading remote support data...</div>;
-  }
-  if (!records.length) {
-    return <div className="p-10 text-center text-slate-400">No remote support requests found yet.</div>;
-  }
-
-  return (
-    <section className="overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900/80 p-6 text-slate-100 shadow-xl">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.24em] text-indigo-300">Remote support</p>
-          <h2 className="mt-2 text-2xl font-bold text-white">{role === 'TECH_SUPPORT' ? 'Assigned tickets' : 'Support workflow'}</h2>
-          <p className="mt-2 text-sm text-slate-400">Review remote assistance requests tied to leads, sales, and technical handover.</p>
-        </div>
-      </div>
-
-      <div className="grid gap-4">
-        {records.map((record) => (
-          <article key={record._id} className="rounded-3xl border border-slate-800 bg-slate-950/80 p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-white">{record.customerName}</p>
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{new Date(record.dateTime).toLocaleDateString()}</p>
-                <p className="text-sm text-slate-400">{record.issueReason}</p>
-              </div>
-              <div className="space-y-2 text-right">
-                <p className="text-sm text-slate-400">Sales rep: <span className="font-medium text-white">{record.salesEmployeeName}</span></p>
-                <p className="text-sm text-slate-400">Tech support: <span className="font-medium text-white">{record.techSupportEmployeeName || 'Unassigned'}</span></p>
-                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${record.status === 'SUCCESSFUL' ? 'bg-emerald-500/10 text-emerald-300' : record.status === 'FAILED' ? 'bg-rose-500/10 text-rose-300' : record.status === 'IN_PROGRESS' ? 'bg-indigo-500/10 text-indigo-300' : 'bg-slate-700 text-slate-200'}`}>
-                  {record.status.replace('_', ' ')}
-                </span>
-              </div>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
 
 function ProjectSection({ projects, loading }: { projects: IProjectRecord[]; loading: boolean }) {
   if (loading) {

@@ -43,6 +43,9 @@ export type LeadWorkflow = {
   leadId?: string;
   acceptedBy?: string;
   connected?: 'yes' | 'no';
+  needsTechSupport?: 'yes' | 'no';
+  techSupportRequested?: boolean;
+  remoteSupportId?: string;
   isSale?: 'yes' | 'no';
   saleAmount?: number;
   paymentMethod?: 'Card' | 'Check' | 'Wire Transfer' | 'Cash' | 'Other';
@@ -176,12 +179,24 @@ export interface IRemoteSupportRecord {
   _id: string;
   customerName: string;
   customerContact: string;
+  country?: string;
+  system?: string;
+  otherDetails?: string;
+  salesEmployeeId: string;
   salesEmployeeName: string;
+  techSupportEmployeeId?: string;
   techSupportEmployeeName?: string;
   status: string;
   dateTime: string;
+  leadId?: string;
+  workflowMessageId?: string;
   issueReason: string;
+  acceptedAt?: string;
+  completedAt?: string;
   failedReason?: string;
+  rejectedReason?: string;
+  failedByName?: string;
+  rejectedByName?: string;
 }
 
 export interface IProjectRecord {
@@ -341,7 +356,11 @@ export const companyService = {
   getSales: async (): Promise<ICompanySale[]> => (await api.get('/company/sales', { params: { failed: false, t: Date.now() }, headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache', Expires: '0' } })).data.data,
   getFailedSales: async (): Promise<ICompanySale[]> => (await api.get('/company/sales', { params: { failed: true, t: Date.now() }, headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache', Expires: '0' } })).data.data,
   getRemoteSupport: async (filters: Record<string, any> = {}): Promise<IRemoteSupportRecord[]> => (await api.get('/company/remote-support', { params: filters })).data.data,
-  createRemoteSupport: async (data: Omit<IRemoteSupportRecord, '_id'>) => (await api.post('/company/remote-support', data)).data.data,
+  createRemoteSupport: async (data: Partial<IRemoteSupportRecord>) => (await api.post('/company/remote-support', data)).data.data,
+  acceptRemoteSupport: async (id: string) => (await api.post(`/company/remote-support/${id}/accept`)).data.data,
+  rejectRemoteSupport: async (id: string, rejectedReason: string) => (await api.post(`/company/remote-support/${id}/reject`, { rejectedReason })).data.data,
+  completeRemoteSupport: async (id: string, payload: { status: 'SUCCESSFUL' | 'FAILED'; failedReason?: string }) => (await api.post(`/company/remote-support/${id}/complete`, payload)).data.data,
+  assignRemoteSupport: async (id: string, techSupportEmployeeId: string) => (await api.post(`/company/remote-support/${id}/assign`, { techSupportEmployeeId })).data.data,
   updateRemoteSupport: async (id: string, data: Partial<IRemoteSupportRecord>) => (await api.patch(`/company/remote-support/${id}`, data)).data.data,
   deleteRemoteSupport: async (id: string) => (await api.delete(`/company/remote-support/${id}`)).data.data,
   getProjects: async (): Promise<IProjectRecord[]> => (await api.get('/company/projects')).data.data,

@@ -43,10 +43,24 @@ export function EmployeeOverviewSection({
   projectSummary?: ICompanyDashboard['projectSummary'];
   setActiveSection: Dispatch<SetStateAction<NavSection>>;
 }) {
-  const target = employee.monthlySalesTarget || employee.remoteTarget || 0;
-  const achieved = employee.monthlySalesAchieved || 0;
-  const progress = target ? Math.min(100, Math.round((achieved / target) * 100)) : 0;
-  
+  const isTechSupport = employee.role === 'TECH_SUPPORT';
+
+  // For TECH_SUPPORT: target = remoteTarget, achieved = successful remotes
+  const remoteTarget = employee.remoteTarget || 0;
+  const remoteSuccessful = remoteSupportSummary?.successful ?? 0;
+  const remoteFailed = remoteSupportSummary?.failed ?? 0;
+  const remotePending = remoteSupportSummary?.pending ?? 0;
+  const remoteTotal = remoteSupportSummary?.total ?? 0;
+  const remoteProgress = remoteTarget ? Math.min(100, Math.round((remoteSuccessful / remoteTarget) * 100)) : 0;
+
+  // For Sales / general roles
+  const salesTarget = employee.monthlySalesTarget || 0;
+  const salesAchieved = employee.monthlySalesAchieved || 0;
+  const salesProgress = salesTarget ? Math.min(100, Math.round((salesAchieved / salesTarget) * 100)) : 0;
+
+  const target = isTechSupport ? remoteTarget : (salesTarget || employee.remoteTarget || 0);
+  const progress = isTechSupport ? remoteProgress : salesProgress;
+
   // Calculate stroke offset for the circular progress (radius 28)
   const circumference = 2 * Math.PI * 28;
   const strokeDashoffset = circumference - (progress / 100) * circumference;
@@ -91,10 +105,10 @@ export function EmployeeOverviewSection({
           </>
         ) : employee.role === 'TECH_SUPPORT' ? (
           <>
-            <Metric icon={LifeBuoy} label="Support tickets" value={remoteSupportSummary?.total ?? 0} />
-            <Metric icon={ShieldCheck} label="Success rate" value={`${remoteSupportSummary?.successRate ?? 0}%`} />
-            <Metric icon={Target} label="Remote target" value={`${target}`} />
-            <Metric icon={Users} label="Assigned leads" value={stats.myLeads ?? 0} />
+            <Metric icon={LifeBuoy} label="Total Remotes" value={remoteTotal} />
+            <Metric icon={ShieldCheck} label="Successful" value={remoteSuccessful} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" />
+            <Metric icon={Target} label="Failed" value={remoteFailed} iconColor="text-rose-400" iconBg="bg-rose-500/10" />
+            <Metric icon={TrendingUp} label="Success Rate" value={`${remoteSupportSummary?.successRate ?? 0}%`} iconColor="text-cyan-400" iconBg="bg-cyan-500/10" />
           </>
         ) : employee.role === 'IT' ? (
           <>
@@ -128,51 +142,81 @@ export function EmployeeOverviewSection({
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Monthly progress
+                  {isTechSupport ? 'Remote target progress' : 'Monthly progress'}
                 </p>
                 <p className="mt-2 text-4xl font-bold text-white">{progress}%</p>
+                {isTechSupport && (
+                  <p className="mt-1 text-sm text-slate-400">
+                    <span className="font-semibold text-emerald-400">{remoteSuccessful}</span> of <span className="font-semibold text-white">{remoteTarget}</span> target remotes completed
+                  </p>
+                )}
               </div>
               
               {/* Dynamic SVG Circular Progress */}
               <div className="relative h-16 w-16">
                 <svg className="h-full w-full -rotate-90 transform" viewBox="0 0 64 64">
+                  <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="none" className="text-slate-800" />
                   <circle
-                    cx="32"
-                    cy="32"
-                    r="28"
-                    stroke="currentColor"
-                    strokeWidth="6"
-                    fill="none"
-                    className="text-slate-800"
-                  />
-                  <circle
-                    cx="32"
-                    cy="32"
-                    r="28"
-                    stroke="currentColor"
-                    strokeWidth="6"
-                    fill="none"
+                    cx="32" cy="32" r="28"
+                    stroke="currentColor" strokeWidth="6" fill="none"
                     strokeDasharray={circumference}
                     strokeDashoffset={strokeDashoffset}
                     strokeLinecap="round"
-                    className="text-indigo-500 transition-all duration-1000 ease-out"
+                    className={`transition-all duration-1000 ease-out ${isTechSupport ? 'text-cyan-500' : 'text-indigo-500'}`}
                   />
                 </svg>
               </div>
             </div>
 
-            <div className="mt-8">
-              <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                <span>$0</span>
-                <span>${target.toLocaleString()}</span>
+            {isTechSupport ? (
+              /* Tech Support: show remote breakdown bars */
+              <div className="mt-6 space-y-3">
+                <div>
+                  <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+                    <span className="text-emerald-400 font-semibold">✓ Successful</span>
+                    <span className="font-semibold text-white">{remoteSuccessful}</span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                    <div className="h-full rounded-full bg-emerald-500 transition-all duration-1000" style={{ width: remoteTotal ? `${Math.round((remoteSuccessful/remoteTotal)*100)}%` : '0%' }} />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+                    <span className="text-rose-400 font-semibold">✗ Failed</span>
+                    <span className="font-semibold text-white">{remoteFailed}</span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                    <div className="h-full rounded-full bg-rose-500 transition-all duration-1000" style={{ width: remoteTotal ? `${Math.round((remoteFailed/remoteTotal)*100)}%` : '0%' }} />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+                    <span className="text-amber-400 font-semibold">⏳ Pending / In Progress</span>
+                    <span className="font-semibold text-white">{remotePending}</span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                    <div className="h-full rounded-full bg-amber-500 transition-all duration-1000" style={{ width: remoteTotal ? `${Math.round((remotePending/remoteTotal)*100)}%` : '0%' }} />
+                  </div>
+                </div>
+                <div className="mt-2 border-t border-slate-800 pt-2">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>Target</span>
+                    <span className="font-semibold text-white">{remoteTarget} remotes</span>
+                  </div>
+                </div>
               </div>
-              <div className="h-2 w-full rounded-full bg-slate-800 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-indigo-500 transition-all duration-1000 ease-out"
-                  style={{ width: `${progress}%` }}
-                />
+            ) : (
+              /* Sales / general: show $ progress bar */
+              <div className="mt-8">
+                <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+                  <span>$0</span>
+                  <span>${target.toLocaleString()}</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-slate-800 overflow-hidden">
+                  <div className="h-full rounded-full bg-indigo-500 transition-all duration-1000 ease-out" style={{ width: `${progress}%` }} />
+                </div>
               </div>
-            </div>
+            )}
           </div>
           
           <div className="mt-6 border-t border-slate-800 pt-4">

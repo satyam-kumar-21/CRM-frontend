@@ -64,10 +64,12 @@ export default function CompanyAdminDashboardPage() {
 
   const handleIncomingChatMessage = (message: import('@/services/companyService').ICompanyMessage) => {
     const conversationId = message.conversationId || message.groupId;
-    if (!conversationId || message.isMine || conversationId === selectedChatId) return;
-    const activityAt = message.createdAt;
-    setEmployeesList((current) => current.map((employee) => employee.id === conversationId ? { ...employee, latestChatAt: activityAt, unreadCount: employee.unreadCount + 1 } : employee));
-    setGroupsList((current) => current.map((group) => group.id === conversationId ? { ...group, latestChatAt: activityAt, unreadCount: group.unreadCount + 1 } : group));
+    if (!conversationId || message.isMine) return;
+    const activityAt = message.createdAt || new Date().toISOString();
+    const isActiveChat = conversationId === selectedChatId;
+    // Always update latestChatAt so list re-sorts; only bump unread when it's a background chat
+    setEmployeesList((current) => current.map((employee) => employee.id === conversationId ? { ...employee, latestChatAt: activityAt, unreadCount: isActiveChat ? employee.unreadCount : employee.unreadCount + 1 } : employee));
+    setGroupsList((current) => current.map((group) => group.id === conversationId ? { ...group, latestChatAt: activityAt, unreadCount: isActiveChat ? group.unreadCount : group.unreadCount + 1 } : group));
   };
   const handleConversationRead = (conversationId: string) => {
     setEmployeesList((current) => current.map((employee) => employee.id === conversationId ? { ...employee, unreadCount: 0 } : employee));
@@ -115,6 +117,10 @@ export default function CompanyAdminDashboardPage() {
     if (!chatMessageInput.trim()) return;
     const sentMessage = await companyService.postConversationMessage(selectedChatId, { content: chatMessageInput.trim() });
     setChatMessageInput('');
+    // Immediately bump latestChatAt so list re-orders after sending
+    const now = new Date().toISOString();
+    setEmployeesList((current) => current.map((emp) => emp.id === selectedChatId ? { ...emp, latestChatAt: now } : emp));
+    setGroupsList((current) => current.map((grp) => grp.id === selectedChatId ? { ...grp, latestChatAt: now } : grp));
     return sentMessage;
   };
   const handleSendLead = async (lead: { name: string; country: string; system: string; contactNo: string; otherDetails: string }) => {
@@ -261,7 +267,7 @@ export default function CompanyAdminDashboardPage() {
   return <ProtectedRoute roles={['COMPANY_ADMIN']}><div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased"><div className="grid min-h-screen lg:grid-cols-[280px_1fr]"><CompanyAdminSidebar companyName={dashboard?.company?.name} navigationMenu={navigationMenu} activeSection={activeSection} setActiveSection={setActiveSection} /><main className="flex flex-col h-screen overflow-hidden bg-slate-950">
     <WorkspaceNotificationWatcher dashboardPath="/company-admin/dashboard" onMessage={handleIncomingChatMessage} />
     {activeSection === 'overview' && dashboard?.stats && <CompanyOverviewSection employees={employeesList} companyName={dashboard?.company?.name} attendanceSummary={dashboard?.attendanceSummary} stats={dashboard.stats} setActiveSection={setActiveSection} onAddEmployee={() => setShowAddEmployeeModal(true)} />}
-    {activeSection === 'chat' && <ChatSection groups={groupsList} employees={employeesList} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={chatMessageInput} setMessageInput={setChatMessageInput} onSendMessage={handleSendChatMessage} onSendLead={handleSendLead} currentUserName={dashboard?.employee?.name || 'Admin'} isAdmin onConversationRead={handleConversationRead} onCreateGroup={() => { setEditingGroup(null); setNewGroupName(''); setNewGroupDesc(''); setNewGroupPrivacy('public'); setNewGroupMemberIds([]); setShowCreateGroupModal(true); }} />}
+    {activeSection === 'chat' && <ChatSection groups={groupsList} employees={employeesList} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={chatMessageInput} setMessageInput={setChatMessageInput} onSendMessage={handleSendChatMessage} onSendLead={handleSendLead} currentUserId={dashboard?.employee?._id} currentUserName={dashboard?.employee?.name || 'Admin'} currentUserRole={dashboard?.employee?.role} isAdmin onConversationRead={handleConversationRead} onCreateGroup={() => { setEditingGroup(null); setNewGroupName(''); setNewGroupDesc(''); setNewGroupPrivacy('public'); setNewGroupMemberIds([]); setShowCreateGroupModal(true); }} />}
     {activeSection === 'todays-report' && <TodaysReportSection report={dashboard?.stats?.todayReport} />}
     {activeSection === 'employees' && <EmployeesSection employees={employeesList} filteredEmployees={filteredEmployees} searchQuery={searchQuery} setSearchQuery={setSearchQuery} employeeRoleFilter={employeeRoleFilter} setEmployeeRoleFilter={setEmployeeRoleFilter} onSelectEmployee={setSelectedEmployeeForDetails} onAddEmployee={handleOpenNewEmployeeModal} onEditEmployee={handleEditEmployee} onToggleBlock={handleToggleEmployeeBlock} onDeleteEmployee={handleDeleteEmployee} />}
     {activeSection === 'sales' && <AdminSalesSection />}

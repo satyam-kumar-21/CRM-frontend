@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { Check, CheckCheck, Hash, MoreVertical, Pencil, Plus, Search, Send, Trash2, UserRound, X, UserPlus } from 'lucide-react';
+import { Check, CheckCheck, Hash, MoreVertical, Pencil, Plus, Search, Send, Trash2, UserRound, X, UserPlus, Image, FileText, Mic } from 'lucide-react';
 import { toast } from 'sonner';
 import { io } from 'socket.io-client';
-import { companyService, ICompanyMessage, type ICompanyLead, type LeadWorkflow } from '@/services/companyService';
+import { companyService, ICompanyMessage, type ICompanyLead, type IRemoteSupportRecord, type LeadWorkflow } from '@/services/companyService';
 import { getBusinessDateString } from '@/lib/businessDate';
 import { ChatAttachmentInput } from './ChatAttachmentInput';
 import { ChatAttachmentPreview } from './ChatAttachmentPreview';
@@ -21,14 +21,28 @@ type ChatSectionProps = {
   setMessageInput: Dispatch<SetStateAction<string>>;
   onSendMessage: () => ICompanyMessage | void | Promise<ICompanyMessage | void>;
   onSendLead?: (lead: Omit<ICompanyLead, '_id' | 'connected' | 'connectedBy' | 'isSale'> & { workflowMessageId?: string }) => Promise<ICompanyMessage>;
+  currentUserId?: string;
   currentUserName?: string;
+  currentUserRole?: string;
   isAdmin?: boolean;
   onCreateGroup?: () => void;
   onConversationRead?: (conversationId: string) => void;
 };
 
+function formatMessageDateLabel(dateString: string): string {
+  const messageDate = getBusinessDateString(dateString);
+  const today = getBusinessDateString(new Date());
+  const yesterdayDate = new Date();
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterday = getBusinessDateString(yesterdayDate);
+
+  if (messageDate === today) return 'Today';
+  if (messageDate === yesterday) return 'Yesterday';
+  return messageDate;
+}
+
 export function ChatSection(props: ChatSectionProps) {
-  const { groups, employees, activeFilter, setActiveFilter, selectedChatId, setSelectedChatId, messageInput, setMessageInput, onSendMessage, onSendLead, currentUserName = 'Employee', isAdmin = false, onCreateGroup, onConversationRead } = props;
+  const { groups, employees, activeFilter, setActiveFilter, selectedChatId, setSelectedChatId, messageInput, setMessageInput, onSendMessage, onSendLead, currentUserId, currentUserName = 'Employee', currentUserRole, isAdmin = false, onCreateGroup, onConversationRead } = props;
   const [messages, setMessages] = useState<ICompanyMessage[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
@@ -36,29 +50,32 @@ export function ChatSection(props: ChatSectionProps) {
   const [chatSearch, setChatSearch] = useState('');
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [remoteSupportByLeadId, setRemoteSupportByLeadId] = useState<Record<string, IRemoteSupportRecord[]>>({});
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [leadForm, setLeadForm] = useState({ name: '', country: '', system: '', contactNo: '', otherDetails: '' });
   const [saleForms, setSaleForms] = useState<Record<string, { amount: string; paymentMethod: NonNullable<LeadWorkflow['paymentMethod']> }>>({});
   const previousCount = useRef(0);
-
-  const dedupeMessages = (messages: ICompanyMessage[]) => Array.from(new Map(messages.map((message) => [message._id, message])).values());
   const bottomRef = useRef<HTMLDivElement>(null);
-  const selectedEmployee = employees.find((employee) => employee.id === selectedChatId);
-  const selectedGroup = groups.find((group) => group.id === selectedChatId);
+
+  const dedupeMessages = (msgList: ICompanyMessage[]) => Array.from(new Map(msgList.map((m) => [m._id, m])).values());
+
+  const selectedEmployee = employees.find((emp) => emp.id === selectedChatId);
+  const selectedGroup = groups.find((grp) => grp.id === selectedChatId);
   const title = selectedEmployee?.name || selectedGroup?.name || 'Active Conversation';
   const query = chatSearch.trim().toLowerCase();
-  const sortedGroups = [...groups].filter((group) => group.name.toLowerCase().includes(query)).sort((left, right) => new Date(right.latestChatAt || 0).getTime() - new Date(left.latestChatAt || 0).getTime());
-  const sortedEmployees = [...employees].filter((employee) => `${employee.name} ${employee.role}`.toLowerCase().includes(query)).sort((left, right) => new Date(right.latestChatAt || 0).getTime() - new Date(left.latestChatAt || 0).getTime());
+
+  const sortedGroups = [...groups].filter((g) => g.name.toLowerCase().includes(query)).sort((l, r) => new Date(r.latestChatAt || 0).getTime() - new Date(l.latestChatAt || 0).getTime());
+  const sortedEmployees = [...employees].filter((e) => `${e.name} ${e.role}`.toLowerCase().includes(query)).sort((l, r) => new Date(r.latestChatAt || 0).getTime() - new Date(l.latestChatAt || 0).getTime());
+
   const conversations = [
-    ...sortedGroups.map((group) => ({ ...group, type: 'group' as const })),
-    ...sortedEmployees.map((employee) => ({ ...employee, type: 'employee' as const })),
-  ].filter((conversation) => activeFilter === 'all' || conversation.type === (activeFilter === 'groups' ? 'group' : 'employee')).sort((left, right) => new Date(right.latestChatAt || 0).getTime() - new Date(left.latestChatAt || 0).getTime());
+    ...sortedGroups.map((g) => ({ ...g, type: 'group' as const })),
+    ...sortedEmployees.map((e) => ({ ...e, type: 'employee' as const })),
+  ].filter((c) => activeFilter === 'all' || c.type === (activeFilter === 'groups' ? 'group' : 'employee')).sort((l, r) => new Date(r.latestChatAt || 0).getTime() - new Date(l.latestChatAt || 0).getTime());
 
   useEffect(() => {
     if (!selectedChatId) return;
     let active = true;
     const load = async () => {
-      if (document.hidden || !document.hasFocus()) return;
       try {
         const next = await companyService.getConversationMessages(selectedChatId);
         if (!active) return;
@@ -70,15 +87,18 @@ export function ChatSection(props: ChatSectionProps) {
     };
     previousCount.current = 0;
     void load();
+
     const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000', {
       auth: { token: window.localStorage.getItem('companyAccessToken') || undefined },
       withCredentials: true,
     });
+
     const markRead = () => {
       socket.emit('conversation:read', selectedChatId);
       void companyService.markConversationRead(selectedChatId).catch(() => undefined);
       onConversationRead?.(selectedChatId);
     };
+
     const joinConversation = () => socket.emit('conversation:join', selectedChatId, (allowed: boolean) => { if (allowed) markRead(); });
     socket.on('connect', joinConversation);
     socket.on('message:new', (message: ICompanyMessage) => {
@@ -86,23 +106,49 @@ export function ChatSection(props: ChatSectionProps) {
       const messageConversationId = message.conversationId || message.groupId;
       if (messageConversationId !== selectedChatId) return;
       setMessages((current) => dedupeMessages([...current, message]));
-      if (!message.isMine) {
-        markRead();
-      }
+      if (!message.isMine) markRead();
     });
+
     socket.on('message:updated', (message: ICompanyMessage) => {
       setMessages((current) => current.map((item) => item._id === message._id ? { ...item, ...message } : item));
     });
+
     socket.on('message:deleted', (message: { id: string }) => {
       setMessages((current) => current.filter((item) => item._id !== message.id));
     });
+
     socket.on('message:read', (receipt: { messageIds: string[] }) => {
       setMessages((current) => current.map((message) => receipt.messageIds.includes(message._id) ? { ...message, isSeen: true } : message));
     });
+
+    const reloadSupport = () => {
+      const leadIds = Array.from(new Set(messages.map((message) => parseWorkflow(message.content)?.leadId).filter(Boolean) as string[]));
+      if (leadIds.length) {
+        Promise.all(leadIds.map(async (leadId) => [leadId, await companyService.getRemoteSupport({ leadId })] as const))
+          .then((results) => setRemoteSupportByLeadId(Object.fromEntries(results)))
+          .catch(() => undefined);
+      }
+    };
+
+    socket.on('support:created', reloadSupport);
+    socket.on('support:accepted', reloadSupport);
+    socket.on('support:rejected', reloadSupport);
+    socket.on('support:completed', reloadSupport);
+    socket.on('support:updated', reloadSupport);
+
     return () => {
       active = false;
       socket.emit('conversation:leave', selectedChatId);
       socket.off('connect', joinConversation);
+      socket.off('message:new');
+      socket.off('message:updated');
+      socket.off('message:deleted');
+      socket.off('message:read');
+      socket.off('support:created', reloadSupport);
+      socket.off('support:accepted', reloadSupport);
+      socket.off('support:rejected', reloadSupport);
+      socket.off('support:completed', reloadSupport);
+      socket.off('support:updated', reloadSupport);
       socket.disconnect();
     };
   }, [selectedChatId]);
@@ -111,9 +157,30 @@ export function ChatSection(props: ChatSectionProps) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages]);
 
+  useEffect(() => {
+    const loadSupportData = async () => {
+      const leadIds = Array.from(new Set(messages.map((message) => parseWorkflow(message.content)?.leadId).filter(Boolean) as string[]));
+      if (!leadIds.length) {
+        setRemoteSupportByLeadId({});
+        return;
+      }
+      try {
+        const results = await Promise.all(leadIds.map(async (leadId) => {
+          const records = await companyService.getRemoteSupport({ leadId });
+          return [leadId, records] as const;
+        }));
+        setRemoteSupportByLeadId(Object.fromEntries(results));
+      } catch {
+        setRemoteSupportByLeadId({});
+      }
+    };
+    void loadSupportData();
+  }, [messages]);
+
   const sendMessage = async () => {
     const optimisticContent = messageInput.trim();
     if (!optimisticContent) return;
+
     const leadValues = optimisticContent.split(',');
     const shortcutLead = onSendLead && leadValues.length >= 5 ? {
       name: leadValues[0].trim(),
@@ -122,10 +189,12 @@ export function ChatSection(props: ChatSectionProps) {
       contactNo: leadValues[3].trim(),
       otherDetails: leadValues.slice(4).join(',').trim(),
     } : null;
-    if (shortcutLead && Object.values(shortcutLead).slice(0, 4).some((value) => !value)) {
-      toast.error('Use: Lead Name, Country, System, Contact No, Other Details');
+
+    if (shortcutLead && Object.values(shortcutLead).slice(0, 4).some((v) => !v)) {
+      toast.error('Use format: Lead Name, Country, System, Contact No, Other Details');
       return;
     }
+
     const optimisticId = `pending-${Date.now()}`;
     const optimisticMessage: ICompanyMessage = {
       _id: optimisticId,
@@ -140,24 +209,22 @@ export function ChatSection(props: ChatSectionProps) {
 
     try {
       const sentMessage = shortcutLead
-        ? onSendLead
-          ? await onSendLead(shortcutLead)
-          : undefined
+        ? onSendLead ? await onSendLead(shortcutLead) : undefined
         : await onSendMessage();
       if (sentMessage?._id) {
         setMessages((current) => [
-          ...current.filter((message) => message._id !== optimisticId && message._id !== sentMessage._id),
+          ...current.filter((msg) => msg._id !== optimisticId && msg._id !== sentMessage._id),
           { ...sentMessage, isMine: true },
         ]);
         setMessageInput('');
       }
     } catch (error: any) {
-      setMessages((current) => current.filter((message) => message._id !== optimisticId));
+      setMessages((current) => current.filter((msg) => msg._id !== optimisticId));
       toast.error(error.response?.data?.message || 'Unable to send message');
     }
   };
 
-  const uploadAttachment = async (file: File, type: 'IMAGE' | 'FILE' | 'AUDIO', duration?: number) => {
+  const uploadAttachment = async (file: File, type: 'IMAGE' | 'FILE' | 'AUDIO') => {
     if (!selectedChatId) {
       toast.error('Select a conversation first.');
       return;
@@ -185,19 +252,21 @@ export function ChatSection(props: ChatSectionProps) {
     try {
       const formData = new FormData();
       formData.append('attachment', file);
-      if (typeof duration === 'number') {
-        formData.append('duration', String(duration));
-      }
+      formData.append('conversationId', selectedChatId);
+      formData.append('messageType', type);
 
-      const sentMessage = await companyService.uploadConversationAttachment(selectedChatId, formData, (progressEvent) => {
+      const response = await companyService.uploadConversationAttachment(selectedChatId, formData, (progressEvent) => {
         if (progressEvent.total) {
           setUploadProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total));
         }
       });
-      setMessages((current) => dedupeMessages(current.map((message) => message._id === optimisticId ? { ...sentMessage, isMine: true } : message)));
+      setMessages((current) => [
+        ...current.filter((msg) => msg._id !== optimisticId && msg._id !== response._id),
+        { ...response, isMine: true },
+      ]);
     } catch (error: any) {
-      setMessages((current) => current.filter((message) => message._id !== optimisticId));
-      toast.error(error.response?.data?.message || 'Unable to upload attachment');
+      setMessages((current) => current.filter((msg) => msg._id !== optimisticId));
+      toast.error(error.response?.data?.message || 'Unable to upload file');
     } finally {
       setUploading(false);
       setUploadProgress(null);
@@ -208,7 +277,7 @@ export function ChatSection(props: ChatSectionProps) {
     if (!editingText.trim()) return;
     try {
       const updated = await companyService.updateMessage(messageId, editingText.trim());
-      setMessages((current) => current.map((message) => message._id === messageId ? updated : message));
+      setMessages((current) => current.map((item) => item._id === messageId ? { ...item, ...updated } : item));
       setEditingId(null);
       setEditingText('');
     } catch (error: any) {
@@ -217,23 +286,35 @@ export function ChatSection(props: ChatSectionProps) {
   };
 
   const deleteMessage = async (messageId: string) => {
-    if (!window.confirm('Delete this message?')) return;
     try {
       await companyService.deleteMessage(messageId);
-      setMessages((current) => current.filter((message) => message._id !== messageId));
+      setMessages((current) => current.filter((item) => item._id !== messageId));
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Unable to delete message');
     }
   };
 
-  const parseWorkflow = (content: string): LeadWorkflow | null => {
-    try { const value = JSON.parse(content); return value?.type === 'lead-workflow' ? value : null; } catch { return null; }
+  const parseWorkflow = (content?: string): LeadWorkflow | null => {
+    if (!content) return null;
+    try {
+      const parsed = JSON.parse(content);
+      return parsed?.type === 'lead-workflow' ? (parsed as LeadWorkflow) : null;
+    } catch {
+      return null;
+    }
   };
+
+  const getRemoteSupportForLead = (leadId?: string) => {
+    if (!leadId) return [];
+    return remoteSupportByLeadId[leadId] || [];
+  };
+
   const updateWorkflow = async (message: ICompanyMessage, workflow: LeadWorkflow) => {
     const updated = await companyService.updateMessage(message._id, JSON.stringify(workflow));
     setMessages((current) => current.map((item) => item._id === message._id ? { ...item, ...updated } : item));
   };
-  const actOnWorkflow = async (message: ICompanyMessage, workflow: LeadWorkflow, action: 'accept' | 'decline' | 'connected-yes' | 'connected-no' | 'sale-no' | 'sale-yes', saleForm?: { amount: string; paymentMethod: NonNullable<LeadWorkflow['paymentMethod']> }) => {
+
+  const actOnWorkflow = async (message: ICompanyMessage, workflow: LeadWorkflow, action: 'accept' | 'decline' | 'connected-yes' | 'connected-no' | 'sale-no' | 'sale-yes' | 'tech-support-yes' | 'tech-support-no', saleForm?: { amount: string; paymentMethod: NonNullable<LeadWorkflow['paymentMethod']> }) => {
     try {
       if (action === 'decline') return await updateWorkflow(message, { ...workflow, status: 'declined' });
       if (action === 'accept') {
@@ -245,6 +326,31 @@ export function ChatSection(props: ChatSectionProps) {
         const connected = action === 'connected-yes' ? 'yes' : 'no';
         await companyService.updateLead(workflow.leadId, { ...workflow.lead, connected, connectedBy: workflow.acceptedBy || currentUserName, isSale: workflow.isSale || 'no' });
         return await updateWorkflow(message, { ...workflow, status: 'connected', connected });
+      }
+      if (action === 'tech-support-no') {
+        return await updateWorkflow(message, { ...workflow, needsTechSupport: 'no' });
+      }
+      if (action === 'tech-support-yes') {
+        if (!currentUserId) {
+          toast.error('Unable to create tech support request: missing user ID');
+          return;
+        }
+        const supportRecord = await companyService.createRemoteSupport({
+          leadId: workflow.leadId,
+          workflowMessageId: message._id,
+          customerName: workflow.lead.name,
+          customerContact: workflow.lead.contactNo,
+          country: workflow.lead.country,
+          system: workflow.lead.system,
+          otherDetails: workflow.lead.otherDetails,
+          salesEmployeeId: currentUserId,
+          salesEmployeeName: currentUserName,
+          dateTime: new Date().toISOString(),
+          issueReason: workflow.lead.otherDetails || 'Tech support requested after connection',
+          status: 'PENDING',
+        });
+        toast.success('Remote support request created successfully');
+        return await updateWorkflow(message, { ...workflow, needsTechSupport: 'yes', techSupportRequested: true, remoteSupportId: supportRecord._id });
       }
       if (action === 'sale-no') {
         await companyService.updateLead(workflow.leadId, { ...workflow.lead, connected: workflow.connected || 'no', connectedBy: workflow.acceptedBy || currentUserName, isSale: 'no' });
@@ -260,67 +366,351 @@ export function ChatSection(props: ChatSectionProps) {
       await companyService.createSale({ leadId: workflow.leadId, ...workflow.lead, connectedBy: currentUserName, amount: confirmedAmount, paymentMethod: saleForm.paymentMethod, saleDate: getBusinessDateString() });
       await companyService.updateLead(workflow.leadId, { ...workflow.lead, connected: workflow.connected || 'no', connectedBy: workflow.acceptedBy || currentUserName, isSale: 'yes' });
       return await updateWorkflow(message, { ...workflow, status: 'sale', isSale: 'yes', saleAmount: confirmedAmount, paymentMethod: saleForm.paymentMethod, closedBy: currentUserName });
-    } catch (error: any) { toast.error(error.response?.data?.message || 'Unable to update lead workflow'); }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Unable to update lead workflow');
+    }
   };
+
   const saleMessageId = Object.keys(saleForms)[0];
-  const saleMessage = saleMessageId ? messages.find((message) => message._id === saleMessageId) : undefined;
+  const saleMessage = saleMessageId ? messages.find((msg) => msg._id === saleMessageId) : undefined;
   const saleWorkflow = saleMessage ? parseWorkflow(saleMessage.content) : null;
 
-  return <div className="grid h-full grid-cols-1 overflow-hidden md:grid-cols-[340px_1fr]">
-    <aside className="flex flex-col border-r border-slate-800/80 bg-slate-900/40">
-      <div className="space-y-3 border-b border-slate-800/80 bg-slate-900/60 p-3.5">
-        <div className="flex items-center justify-between"><h2 className="text-base font-bold text-white">Chat Workspace</h2>{onCreateGroup && <button aria-label="Create group" onClick={onCreateGroup} className="rounded-lg bg-indigo-600/20 p-1.5 text-indigo-400 hover:bg-indigo-600 hover:text-white"><Plus className="h-4 w-4" /></button>}</div>
-        <div className="flex items-center gap-2 rounded-lg border border-slate-700/80 bg-slate-950/60 px-2.5"><Search className="h-3.5 w-3.5 text-slate-500" /><input value={chatSearch} onChange={(event) => setChatSearch(event.target.value)} placeholder="Search chats" className="min-w-0 flex-1 bg-transparent py-2 text-xs text-white outline-none placeholder:text-slate-500" /></div>
-        <div className="flex gap-1">{(['all', 'groups', 'employees'] as ChatFilter[]).map((filter) => <button key={filter} onClick={() => setActiveFilter(filter)} className={`rounded-full px-3 py-1 text-[11px] capitalize ${activeFilter === filter ? 'bg-indigo-600 text-white' : 'bg-slate-800/60 text-slate-400'}`}>{filter}</button>)}</div>
-      </div>
-      <div className="flex-1 divide-y divide-slate-800/40 overflow-y-auto">
-        {conversations.map((conversation) => <button key={conversation.id} onClick={() => setSelectedChatId(conversation.id)} className={`flex w-full items-center gap-3 p-3.5 text-left ${selectedChatId === conversation.id ? 'border-l-4 border-indigo-500 bg-indigo-600/10' : 'hover:bg-slate-800/30'}`}><div className={`flex h-10 w-10 shrink-0 items-center justify-center ${conversation.type === 'group' ? 'rounded-xl bg-indigo-600' : `rounded-full bg-gradient-to-tr ${conversation.avatarBg}`} text-white`}>{conversation.type === 'group' ? <Hash className="h-5 w-5" /> : <UserRound className="h-5 w-5" />}</div><span className="min-w-0 flex-1"><b className="block truncate text-xs text-slate-200">{conversation.name}</b><small className="text-[11px] text-slate-400">{conversation.type === 'group' ? conversation.description : conversation.role}</small></span>{conversation.unreadCount > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-500 px-1.5 text-[10px] font-bold text-white">{conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}</span>}</button>)}
-      </div>
-    </aside>
-    <section className="flex min-h-0 flex-col bg-slate-950">
-      <header className="border-b border-slate-800 bg-slate-900/60 p-4"><p className="text-[10px] uppercase tracking-widest text-indigo-400">Encrypted Enterprise Channel</p><h2 className="mt-1 text-base font-bold text-white">{title}</h2><p className="text-xs text-slate-500">{selectedEmployee ? `${selectedEmployee.role} · Direct conversation` : 'Workspace group conversation'}</p></header>
-      <div className="flex-1 space-y-3 overflow-y-auto p-5">
-        {messages.length ? messages.map((message, index) => <div key={`${message._id}-${index}`} className={`flex ${message.isMine ? 'justify-end' : 'justify-start'}`}>
-          <div className={`relative max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${message.isMine ? 'bg-indigo-600/80 text-white' : 'bg-slate-900 text-slate-200'}`}>
-            {editingId === message._id ? <div className="flex gap-2"><input autoFocus value={editingText} onChange={(event) => setEditingText(event.target.value)} className="rounded bg-slate-950 px-2 py-1 text-white" /><button aria-label="Save message" onClick={() => void editMessage(message._id)}><Check className="h-4 w-4" /></button><button aria-label="Cancel editing" onClick={() => setEditingId(null)}><X className="h-4 w-4" /></button></div> : <>
-              {(() => {
-                if (message.messageType && message.objectKey) {
-                  return <ChatAttachmentPreview message={message} conversationId={selectedChatId} />;
-                }
-                const workflow = parseWorkflow(message.content);
-                if (!workflow) return <p>{message.content}</p>;
-                return <div className="space-y-2"><p className="font-bold">📌 Lead</p><p>Lead Name: {workflow.lead.name}<br />Country: {workflow.lead.country}<br />System: {workflow.lead.system}<br />Contact: {workflow.lead.contactNo}{workflow.lead.otherDetails && <><br />Details: {workflow.lead.otherDetails}</>}</p>{workflow.status === 'pending' && !message.isMine && <div className="flex gap-2"><button onClick={() => void actOnWorkflow(message, workflow, 'accept')} className="rounded bg-emerald-600 px-2 py-1 text-xs">Accept</button><button onClick={() => void actOnWorkflow(message, workflow, 'decline')} className="rounded bg-rose-600 px-2 py-1 text-xs">Decline</button></div>}{workflow.status === 'pending' && message.isMine && <p className="text-xs text-slate-300">Awaiting response</p>}{workflow.status === 'declined' && <p className="font-semibold text-rose-300">Declined</p>}{workflow.status !== 'pending' && workflow.status !== 'declined' && <><p>Accepted By: {workflow.acceptedBy}</p>{workflow.status === 'accepted' && !message.isMine && <div><p className="mb-1">Connected?</p><div className="flex gap-2"><button onClick={() => void actOnWorkflow(message, workflow, 'connected-yes')} className="rounded bg-emerald-600 px-2 py-1 text-xs">Yes</button><button onClick={() => void actOnWorkflow(message, workflow, 'connected-no')} className="rounded bg-slate-600 px-2 py-1 text-xs">No</button></div></div>}{workflow.status !== 'accepted' && <p>Connected: {workflow.connected === 'yes' ? 'Yes' : 'No'}</p>}{workflow.status === 'connected' && workflow.isSale === undefined && !message.isMine && <div><p className="mb-1">Is Sale?</p><div className="flex gap-2"><button onClick={() => void actOnWorkflow(message, workflow, 'sale-yes')} className="rounded bg-emerald-600 px-2 py-1 text-xs">Yes</button><button onClick={() => void actOnWorkflow(message, workflow, 'sale-no')} className="rounded bg-slate-600 px-2 py-1 text-xs">No</button></div></div>}{workflow.isSale === 'no' && <p>Sale: No</p>}{workflow.isSale === 'yes' && <p>Sale: Yes<br />Sale Amount: {workflow.saleAmount?.toLocaleString()}<br />Closed By: {workflow.closedBy}<br /><b>✅ Sale Completed</b></p>}</>}</div>; })()}
-              <time className="mt-1 flex items-center gap-1 text-[10px] text-slate-400"><span>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>{message.isEdited && <span>· edited</span>}{message.isMine && (message.isSeen ? <CheckCheck className="h-3.5 w-3.5 text-sky-300" aria-label="Seen" /> : <Check className="h-3.5 w-3.5 text-slate-300" aria-label="Sent" />)}</time>
-              {!message.isMine && <p className="mt-0.5 text-[10px] text-slate-400">{message.senderName || 'Workspace member'}</p>}
-              {message.isMine && <div className="absolute -right-2 -top-2"><button aria-label="Message options" title="Message options" onClick={() => setOpenMenuId((current) => current === message._id ? null : message._id)} className="rounded-full bg-slate-700 p-1 text-slate-200 shadow hover:bg-slate-600"><MoreVertical className="h-3.5 w-3.5" /></button>{openMenuId === message._id && <div className="absolute right-0 top-7 z-10 w-28 overflow-hidden rounded-lg border border-slate-700 bg-slate-900 py-1 text-xs shadow-xl"><button className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-200 hover:bg-slate-800" onClick={() => { setEditingId(message._id); setEditingText(message.content); setOpenMenuId(null); }}><Pencil className="h-3.5 w-3.5" /> Edit</button><button className="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-300 hover:bg-slate-800" onClick={() => { setOpenMenuId(null); void deleteMessage(message._id); }}><Trash2 className="h-3.5 w-3.5" /> Delete</button></div>}</div>}
-            </>}
-          </div>
-        </div>) : <p className="text-center text-sm text-slate-500">No messages yet. Start the conversation.</p>}<div ref={bottomRef} />
-      </div>
-      {saleMessage && saleWorkflow && saleForms[saleMessage._id] && <form onSubmit={async (event) => { event.preventDefault(); const form = saleForms[saleMessage._id]; if (!form.amount) { toast.error('Enter a sale amount'); return; } await actOnWorkflow(saleMessage, saleWorkflow, 'sale-yes', form); setSaleForms((current) => { const next = { ...current }; delete next[saleMessage._id]; return next; }); }} className="border-t border-emerald-500/20 bg-slate-900/95 p-4"><div className="mx-auto flex max-w-2xl flex-col gap-3 rounded-xl border border-slate-700 bg-slate-950 p-4 shadow-lg"><div><p className="text-sm font-semibold text-white">Complete Sale</p><p className="mt-1 text-xs text-slate-400">{saleWorkflow.lead.name} · enter the final amount and payment mode.</p></div><div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1 text-xs text-slate-400"><span>Sale Amount</span><input required min="0" step="0.01" type="number" value={saleForms[saleMessage._id].amount} onChange={(event) => setSaleForms((current) => ({ ...current, [saleMessage._id]: { ...current[saleMessage._id], amount: event.target.value } }))} className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" placeholder="0.00" /></label><label className="space-y-1 text-xs text-slate-400"><span>Payment Mode</span><select required value={saleForms[saleMessage._id].paymentMethod} onChange={(event) => setSaleForms((current) => ({ ...current, [saleMessage._id]: { ...current[saleMessage._id], paymentMethod: event.target.value as NonNullable<LeadWorkflow['paymentMethod']> } }))} className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"><option value="Card">Card</option><option value="Check">Check</option><option value="Wire Transfer">Wire Transfer</option><option value="Cash">Cash</option><option value="Other">Other</option></select></label></div><div className="flex justify-end gap-2"><button type="button" onClick={() => setSaleForms({})} className="rounded-lg bg-slate-700 px-3 py-2 text-xs text-white">Cancel</button><button className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white"><Check className="mr-1 inline h-3.5 w-3.5" />Confirm Sale</button></div></div></form>}
-      {showLeadForm && <form onSubmit={async (event) => { event.preventDefault(); if (!onSendLead) return; try { await onSendLead(leadForm); setLeadForm({ name: '', country: '', system: '', contactNo: '', otherDetails: '' }); setShowLeadForm(false); } catch (error: any) { toast.error(error.response?.data?.message || 'Unable to send lead'); } }} className="grid gap-2 border-t border-slate-800 bg-slate-900/80 p-4 sm:grid-cols-5">{(['name', 'country', 'system', 'contactNo', 'otherDetails'] as const).map((key) => <input key={key} required={key !== 'otherDetails'} placeholder={key === 'contactNo' ? 'Contact No' : key === 'otherDetails' ? 'Other Details' : key.replace(/([A-Z])/g, ' $1')} value={leadForm[key]} onChange={(event) => setLeadForm((current) => ({ ...current, [key]: event.target.value }))} className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-xs text-white" />)}<button className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white sm:col-span-5">Send Lead</button></form>}
-      <div className="border-t border-slate-800 bg-slate-900/40 p-4">
-        <div className="flex items-start gap-3">
-          {onSendLead && selectedEmployee?.role === 'SALES' && <button aria-label="Send lead" title="Send lead" onClick={() => setShowLeadForm((current) => !current)} className="rounded-xl bg-amber-600 px-3 py-2 text-white"><UserPlus className="h-4 w-4" /></button>}
-          <div className="flex-1">
-            <ChatAttachmentInput
-              isDisabled={!selectedChatId || uploading}
-              onSendText={sendMessage}
-              onFileSelected={uploadAttachment}
-              messageInput={messageInput}
-              setMessageInput={setMessageInput}
-            />
-            {uploading && uploadProgress !== null && (
-              <div className="mt-3 rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-300">
-                Uploading attachment: {uploadProgress}%
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
-                  <div className="h-full rounded-full bg-indigo-500" style={{ width: `${uploadProgress}%` }} />
-                </div>
-              </div>
+  return (
+    <div className="grid h-full grid-cols-1 overflow-hidden md:grid-cols-[340px_1fr] bg-slate-950 font-sans">
+      {/* Sidebar Channels List */}
+      <aside className="flex flex-col border-r border-slate-800/80 bg-slate-900/40">
+        <div className="space-y-3 border-b border-slate-800/80 bg-slate-900/60 p-3.5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-bold text-white tracking-tight">Workspace Chat</h2>
+            {onCreateGroup && (
+              <button aria-label="Create group" onClick={onCreateGroup} className="rounded-lg bg-indigo-600/20 p-1.5 text-indigo-400 hover:bg-indigo-600 hover:text-white transition-all">
+                <Plus className="h-4 w-4" />
+              </button>
             )}
           </div>
+          <div className="flex items-center gap-2 rounded-lg border border-slate-700/80 bg-slate-950/60 px-2.5">
+            <Search className="h-3.5 w-3.5 text-slate-500" />
+            <input value={chatSearch} onChange={(e) => setChatSearch(e.target.value)} placeholder="Search chats" className="min-w-0 flex-1 bg-transparent py-2 text-xs text-white outline-none placeholder:text-slate-500" />
+          </div>
+          <div className="flex gap-1">
+            {(['all', 'groups', 'employees'] as ChatFilter[]).map((filter) => (
+              <button key={filter} onClick={() => setActiveFilter(filter)} className={`rounded-full px-3 py-1 text-[11px] capitalize transition-colors ${activeFilter === filter ? 'bg-indigo-600 text-white font-semibold' : 'bg-slate-800/60 text-slate-400 hover:text-white'}`}>
+                {filter}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-    </section>
-  </div>;
+
+        <div className="flex-1 divide-y divide-slate-800/40 overflow-y-auto">
+          {conversations.map((conversation) => (
+            <button
+              key={conversation.id}
+              onClick={() => setSelectedChatId(conversation.id)}
+              className={`flex w-full items-center gap-3 p-3.5 text-left transition-all ${selectedChatId === conversation.id ? 'border-l-4 border-emerald-500 bg-emerald-500/10' : 'hover:bg-slate-800/30'}`}
+            >
+              <div className={`flex h-10 w-10 shrink-0 items-center justify-center ${conversation.type === 'group' ? 'rounded-xl bg-indigo-600' : `rounded-full bg-gradient-to-tr ${conversation.avatarBg}`} text-white font-bold`}>
+                {conversation.type === 'group' ? <Hash className="h-5 w-5" /> : <UserRound className="h-5 w-5" />}
+              </div>
+              <span className="min-w-0 flex-1">
+                <b className="block truncate text-xs text-slate-200">{conversation.name}</b>
+                <small className="text-[11px] text-slate-400">{conversation.type === 'group' ? conversation.description : conversation.role}</small>
+              </span>
+              {conversation.unreadCount > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-slate-950 shadow-sm">
+                  {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </aside>
+
+      {/* WhatsApp-Style Main Chat Area */}
+      <section className="flex min-h-0 flex-col bg-slate-950">
+        {/* Header */}
+        <header className="border-b border-slate-800 bg-slate-900/80 p-3.5 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600/20 text-emerald-400 font-bold">
+              {selectedGroup ? <Hash className="h-4 w-4" /> : <UserRound className="h-4 w-4" />}
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-white">{title}</h2>
+              <p className="text-[11px] text-slate-400">
+                {selectedEmployee ? `${selectedEmployee.role} · Direct Chat` : 'Workspace Group'}
+              </p>
+            </div>
+          </div>
+        </header>
+
+        {/* Messages Feed */}
+        <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6 bg-slate-950/90">
+          {messages.length ? (
+            messages.map((message, index) => {
+              const prevMsg = messages[index - 1];
+              const currentDateLabel = formatMessageDateLabel(message.createdAt);
+              const prevDateLabel = prevMsg ? formatMessageDateLabel(prevMsg.createdAt) : null;
+              const showDateHeader = currentDateLabel !== prevDateLabel;
+
+              return (
+                <div key={`${message._id}-${index}`} className="space-y-3">
+                  {showDateHeader && (
+                    <div className="my-3 flex justify-center">
+                      <span className="rounded-full bg-slate-800/80 px-3.5 py-1 text-[10px] font-semibold tracking-wide text-slate-300 shadow-sm border border-slate-700/50">
+                        {currentDateLabel}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className={`flex ${message.isMine ? 'justify-end' : 'justify-start'}`}>
+                    <div
+                      className={`relative max-w-[85%] sm:max-w-[72%] rounded-2xl px-4 py-2.5 text-sm shadow-md transition-all ${
+                        message.isMine
+                          ? 'bg-emerald-800/90 text-slate-100 rounded-tr-none border border-emerald-700/50'
+                          : 'bg-slate-900 text-slate-100 rounded-tl-none border border-slate-800'
+                      }`}
+                    >
+                      {!message.isMine && selectedGroup && (
+                        <p className="mb-1 text-[11px] font-bold text-emerald-400">{message.senderName || 'Workspace Member'}</p>
+                      )}
+
+                      {editingId === message._id ? (
+                        <div className="flex gap-2">
+                          <input autoFocus value={editingText} onChange={(e) => setEditingText(e.target.value)} className="rounded bg-slate-950 px-2 py-1 text-white text-xs" />
+                          <button aria-label="Save" onClick={() => void editMessage(message._id)}><Check className="h-4 w-4 text-emerald-400" /></button>
+                          <button aria-label="Cancel" onClick={() => setEditingId(null)}><X className="h-4 w-4 text-rose-400" /></button>
+                        </div>
+                      ) : (
+                        <>
+                          {(() => {
+                            if (message.messageType && message.objectKey) {
+                              return <ChatAttachmentPreview message={message} conversationId={selectedChatId} />;
+                            }
+                            const workflow = parseWorkflow(message.content);
+                            if (!workflow) return <p className="whitespace-pre-wrap break-words">{message.content}</p>;
+
+                            const supportRecords = getRemoteSupportForLead(workflow.leadId);
+                            const latestSupport = supportRecords[0];
+                            const supportBadge = latestSupport ? (
+                              <div className="mt-2 rounded-xl border border-slate-700/80 bg-slate-950/80 p-2.5 text-[11px] text-slate-300">
+                                <p className="font-semibold text-cyan-300 flex items-center justify-between">
+                                  <span>Remote Support</span>
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${latestSupport.status === 'SUCCESSFUL' ? 'bg-emerald-500/20 text-emerald-300' : latestSupport.status === 'FAILED' ? 'bg-rose-500/20 text-rose-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                                    {latestSupport.status}
+                                  </span>
+                                </p>
+                                {latestSupport.techSupportEmployeeName && (
+                                  <p className="mt-1">Assigned: {latestSupport.techSupportEmployeeName}</p>
+                                )}
+                                {latestSupport.failedReason && <p className="mt-1 text-rose-300">Reason: {latestSupport.failedReason}</p>}
+                                {latestSupport.rejectedReason && <p className="mt-1 text-amber-300">Reason: {latestSupport.rejectedReason}</p>}
+                              </div>
+                            ) : null;
+
+                            return (
+                              <div className="space-y-2">
+                                <p className="font-bold text-amber-300 flex items-center gap-1.5">📌 Lead Record</p>
+                                <div className="text-xs space-y-1 bg-slate-950/50 p-2.5 rounded-xl border border-slate-800">
+                                  <p><span className="text-slate-400">Name:</span> <strong className="text-white">{workflow.lead.name}</strong></p>
+                                  <p><span className="text-slate-400">Country:</span> {workflow.lead.country}</p>
+                                  <p><span className="text-slate-400">System:</span> {workflow.lead.system}</p>
+                                  <p><span className="text-slate-400">Contact:</span> {workflow.lead.contactNo}</p>
+                                  {workflow.lead.otherDetails && <p><span className="text-slate-400">Details:</span> {workflow.lead.otherDetails}</p>}
+                                </div>
+
+                                {workflow.status === 'pending' && !message.isMine && (
+                                  <div className="flex gap-2 pt-1">
+                                    <button onClick={() => void actOnWorkflow(message, workflow, 'accept')} className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow hover:bg-emerald-500">Accept</button>
+                                    <button onClick={() => void actOnWorkflow(message, workflow, 'decline')} className="rounded-lg bg-rose-600 px-3 py-1 text-xs font-semibold text-white shadow hover:bg-rose-500">Decline</button>
+                                  </div>
+                                )}
+                                {workflow.status === 'pending' && message.isMine && <p className="text-xs text-slate-300 italic">Awaiting response...</p>}
+                                {workflow.status === 'declined' && <p className="font-semibold text-rose-300 text-xs">Declined</p>}
+                                {workflow.status !== 'pending' && workflow.status !== 'declined' && (
+                                  <>
+                                    <p className="text-xs text-slate-300">Accepted By: <strong>{workflow.acceptedBy}</strong></p>
+                                    {workflow.status === 'accepted' && !message.isMine && (
+                                      <div className="space-y-1 pt-1">
+                                        <p className="text-xs font-medium text-slate-300">Connected?</p>
+                                        <div className="flex gap-2">
+                                          <button onClick={() => void actOnWorkflow(message, workflow, 'connected-yes')} className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">Yes</button>
+                                          <button onClick={() => void actOnWorkflow(message, workflow, 'connected-no')} className="rounded-lg bg-slate-700 px-3 py-1 text-xs font-semibold text-white shadow">No</button>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {workflow.status !== 'accepted' && <p className="text-xs">Connected: <strong>{workflow.connected === 'yes' ? 'Yes' : 'No'}</strong></p>}
+                                    {workflow.status === 'connected' && workflow.needsTechSupport === undefined && !message.isMine && currentUserRole === 'SALES' && (
+                                      <div className="space-y-1 pt-1">
+                                        <p className="text-xs font-medium text-slate-300">Need Tech Support?</p>
+                                        <div className="flex gap-2">
+                                          <button onClick={() => void actOnWorkflow(message, workflow, 'tech-support-yes')} className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">Yes</button>
+                                          <button onClick={() => void actOnWorkflow(message, workflow, 'tech-support-no')} className="rounded-lg bg-slate-700 px-3 py-1 text-xs font-semibold text-white shadow">No</button>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {workflow.status === 'connected' && workflow.isSale === undefined && !message.isMine && currentUserRole === 'SALES' && (workflow.needsTechSupport === 'no' || latestSupport?.status === 'SUCCESSFUL') && (
+                                      <div className="space-y-1 pt-1">
+                                        <p className="text-xs font-medium text-slate-300">Is Sale?</p>
+                                        <div className="flex gap-2">
+                                          <button onClick={() => void actOnWorkflow(message, workflow, 'sale-yes')} className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">Yes</button>
+                                          <button onClick={() => void actOnWorkflow(message, workflow, 'sale-no')} className="rounded-lg bg-slate-700 px-3 py-1 text-xs font-semibold text-white shadow">No</button>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {workflow.needsTechSupport === 'yes' && latestSupport?.status !== 'SUCCESSFUL' && (
+                                      <p className="text-xs text-amber-300">Tech support requested. Waiting on support outcome.</p>
+                                    )}
+                                    {latestSupport?.status === 'FAILED' && (
+                                      <p className="text-xs text-rose-300">Remote support failed. Lead completed as lead-only.</p>
+                                    )}
+                                    {latestSupport?.status === 'REJECTED' && (
+                                      <p className="text-xs text-rose-300">Remote support rejected. Lead completed as lead-only.</p>
+                                    )}
+                                    {workflow.isSale === 'no' && <p className="text-xs text-slate-300">Sale: No</p>}
+                                    {supportBadge}
+                                    {workflow.isSale === 'yes' && (
+                                      <div className="mt-2 rounded-xl bg-emerald-950/60 p-2 border border-emerald-500/30 text-xs text-emerald-200">
+                                        <p className="font-bold text-emerald-300">✅ Sale Completed</p>
+                                        <p>Amount: ${workflow.saleAmount?.toLocaleString()}</p>
+                                        <p>Closed By: {workflow.closedBy}</p>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {/* WhatsApp Timestamp & Blue Tick */}
+                          <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-slate-300/80">
+                            <span>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            {message.isEdited && <span>· edited</span>}
+                            {message.isMine && (
+                              message.isSeen ? (
+                                <CheckCheck className="h-3.5 w-3.5 text-sky-400" aria-label="Seen" />
+                              ) : (
+                                <CheckCheck className="h-3.5 w-3.5 text-slate-400" aria-label="Delivered" />
+                              )
+                            )}
+                          </div>
+
+                          {message.isMine && (
+                            <div className="absolute -right-2 -top-2">
+                              <button aria-label="Options" onClick={() => setOpenMenuId((cur) => cur === message._id ? null : message._id)} className="rounded-full bg-slate-800 p-1 text-slate-300 shadow hover:bg-slate-700">
+                                <MoreVertical className="h-3 w-3" />
+                              </button>
+                              {openMenuId === message._id && (
+                                <div className="absolute right-0 top-7 z-10 w-28 overflow-hidden rounded-lg border border-slate-700 bg-slate-900 py-1 text-xs shadow-xl">
+                                  <button className="flex w-full items-center gap-2 px-3 py-2 text-slate-200 hover:bg-slate-800" onClick={() => { setEditingId(message._id); setEditingText(message.content); setOpenMenuId(null); }}><Pencil className="h-3 w-3" /> Edit</button>
+                                  <button className="flex w-full items-center gap-2 px-3 py-2 text-rose-300 hover:bg-slate-800" onClick={() => { setOpenMenuId(null); void deleteMessage(message._id); }}><Trash2 className="h-3 w-3" /> Delete</button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-center text-sm text-slate-500 py-12">No messages yet. Start the conversation!</p>
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Sale Form Modal Bar */}
+        {saleMessage && saleWorkflow && saleForms[saleMessage._id] && (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const form = saleForms[saleMessage._id];
+              if (!form.amount) { toast.error('Enter a sale amount'); return; }
+              await actOnWorkflow(saleMessage, saleWorkflow, 'sale-yes', form);
+              setSaleForms((cur) => { const n = { ...cur }; delete n[saleMessage._id]; return n; });
+            }}
+            className="border-t border-emerald-500/20 bg-slate-900/95 p-4"
+          >
+            <div className="mx-auto flex max-w-2xl flex-col gap-3 rounded-xl border border-slate-700 bg-slate-950 p-4 shadow-lg">
+              <div>
+                <p className="text-sm font-semibold text-white">Complete Sale</p>
+                <p className="mt-1 text-xs text-slate-400">{saleWorkflow.lead.name} · Enter sale amount and payment mode.</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1 text-xs text-slate-400">
+                  <span>Sale Amount</span>
+                  <input required min="0" step="0.01" type="number" value={saleForms[saleMessage._id].amount} onChange={(e) => setSaleForms((cur) => ({ ...cur, [saleMessage._id]: { ...cur[saleMessage._id], amount: e.target.value } }))} className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" placeholder="0.00" />
+                </label>
+                <label className="space-y-1 text-xs text-slate-400">
+                  <span>Payment Mode</span>
+                  <select required value={saleForms[saleMessage._id].paymentMethod} onChange={(e) => setSaleForms((cur) => ({ ...cur, [saleMessage._id]: { ...cur[saleMessage._id], paymentMethod: e.target.value as NonNullable<LeadWorkflow['paymentMethod']> } }))} className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500">
+                    <option value="Card">Card</option>
+                    <option value="Check">Check</option>
+                    <option value="Wire Transfer">Wire Transfer</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setSaleForms({})} className="rounded-lg bg-slate-700 px-3 py-2 text-xs text-white">Cancel</button>
+                <button className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white"><Check className="mr-1 inline h-3.5 w-3.5" />Confirm Sale</button>
+              </div>
+            </div>
+          </form>
+        )}
+
+        {/* Lead Form Bar */}
+        {showLeadForm && (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!onSendLead) return;
+              try {
+                await onSendLead(leadForm);
+                setLeadForm({ name: '', country: '', system: '', contactNo: '', otherDetails: '' });
+                setShowLeadForm(false);
+              } catch (error: any) {
+                toast.error(error.response?.data?.message || 'Unable to send lead');
+              }
+            }}
+            className="grid gap-2 border-t border-slate-800 bg-slate-900/80 p-4 sm:grid-cols-5"
+          >
+            {(['name', 'country', 'system', 'contactNo', 'otherDetails'] as const).map((key) => (
+              <input key={key} required={key !== 'otherDetails'} placeholder={key === 'contactNo' ? 'Contact No' : key === 'otherDetails' ? 'Other Details' : key.replace(/([A-Z])/g, ' $1')} value={leadForm[key]} onChange={(e) => setLeadForm((cur) => ({ ...cur, [key]: e.target.value }))} className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs text-white" />
+            ))}
+            <button className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white sm:col-span-5">Send Lead</button>
+          </form>
+        )}
+
+        {/* Message Input Box */}
+        <div className="border-t border-slate-800 bg-slate-900/50 p-4">
+          <div className="flex items-start gap-3">
+            {onSendLead && selectedEmployee?.role === 'SALES' && (
+              <button aria-label="Send lead" title="Send lead" onClick={() => setShowLeadForm((cur) => !cur)} className="rounded-xl bg-amber-600 px-3 py-2 text-white hover:bg-amber-500 transition-colors shadow">
+                <UserPlus className="h-4 w-4" />
+              </button>
+            )}
+            <div className="flex-1">
+              <ChatAttachmentInput
+                isDisabled={!selectedChatId || uploading}
+                onSendText={sendMessage}
+                onFileSelected={uploadAttachment}
+                messageInput={messageInput}
+                setMessageInput={setMessageInput}
+              />
+              {uploading && uploadProgress !== null && (
+                <div className="mt-3 rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-300">
+                  Uploading attachment: {uploadProgress}%
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
+                    <div className="h-full rounded-full bg-emerald-500" style={{ width: `${uploadProgress}%` }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 }
