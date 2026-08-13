@@ -128,6 +128,7 @@ export function AddEmployeeModal({
               <option value="MANAGER" className="bg-slate-900 text-white">Manager</option>
               <option value="TEAM_LEAD" className="bg-slate-900 text-white">Team Lead</option>
               <option value="TECH_SUPPORT" className="bg-slate-900 text-white">Tech Support</option>
+              <option value="VERIFICATION" className="bg-slate-900 text-white">Verification</option>
               <option value="IT" className="bg-slate-900 text-white">IT</option>
             </select>
           </label>

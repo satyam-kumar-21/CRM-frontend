@@ -69,6 +69,7 @@ export function EmployeesSection({
             <option value="MANAGER">Manager</option>
             <option value="TEAM_LEAD">Team Lead</option>
             <option value="TECH_SUPPORT">Tech Support</option>
+            <option value="VERIFICATION">Verification</option>
             <option value="IT">IT</option>
           </select>
         </div>

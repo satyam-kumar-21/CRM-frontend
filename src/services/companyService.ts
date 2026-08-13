@@ -159,7 +159,7 @@ export interface ICompanyEmployee {
   name: string;
   email: string;
   phone: string;
-  role: 'COMPANY_ADMIN' | 'HR' | 'MANAGER' | 'TEAM_LEAD' | 'EMPLOYEE' | 'INTERN' | 'SALES' | 'TECH_SUPPORT' | 'IT';
+  role: 'COMPANY_ADMIN' | 'HR' | 'MANAGER' | 'TEAM_LEAD' | 'EMPLOYEE' | 'INTERN' | 'SALES' | 'TECH_SUPPORT' | 'VERIFICATION' | 'FEEDBACK' | 'IT';
   permissions: string[];
   monthlySalesTarget: number;
   remoteTarget?: number;
@@ -222,9 +222,27 @@ export interface ICompanyLead {
   system: string;
   contactNo: string;
   otherDetails: string;
+  customerEmail?: string;
+  alternateContactNo?: string;
+  customerAddress?: string;
+  issues?: string;
+  plan?: string;
+  paymentMerchant?: string;
   connected: 'yes' | 'no';
   connectedBy: string;
+  assignedTo?: string;
+  assignedToName?: string;
+  acceptedAt?: string;
   isSale: 'yes' | 'no';
+  saleAmount?: number;
+  salePaymentMethod?: 'Card' | 'Check' | 'Wire Transfer' | 'Cash' | 'UPI' | 'Bank Transfer' | 'Online' | 'Other';
+  techSupportStatus?: 'NONE' | 'PENDING' | 'ACCEPTED' | 'SUCCESSFUL' | 'FAILED';
+  techSupportEmployeeId?: string;
+  techSupportEmployeeName?: string;
+  techSupportCompletedAt?: string;
+  paymentConfirmed?: 'yes' | 'no';
+  finalStatus?: 'PENDING_PAYMENT' | 'CLOSED' | 'PAYMENT_FAILED';
+  status?: 'OPEN' | 'COMPLETED';
   createdAt?: string;
   workflowMessageId?: string;
 }
@@ -232,17 +250,46 @@ export interface ICompanyLead {
 export interface ICompanySale {
   _id: string;
   leadId?: string;
+  customerId?: string;
   name: string;
+  customerEmail?: string;
+  alternateContactNo?: string;
+  customerAddress?: string;
   country: string;
   system: string;
+  issues?: string;
+  plan?: string;
+  paymentMerchant?: string;
   connectedBy: string;
+  salesEmployeeId?: string;
+  salesEmployeeName?: string;
+  techSupportEmployeeId?: string;
+  techSupportEmployeeName?: string;
+  techSupportCompletedAt?: string;
   amount: number;
-  paymentMethod: 'Card' | 'Check' | 'Wire Transfer' | 'Cash' | 'Other';
+  paymentMethod: 'Card' | 'Check' | 'Wire Transfer' | 'Cash' | 'UPI' | 'Bank Transfer' | 'Online' | 'Other';
   saleDate: string;
+  businessDate?: string;
   failed?: boolean;
   failedReason?: string;
   failedAt?: string | null;
   failedByName?: string;
+  verificationStatus?: 'PENDING' | 'IN_PROGRESS' | 'SUCCESSFUL' | 'FAILED';
+  verifiedBy?: string;
+  verifiedByName?: string;
+  verifiedAt?: string;
+  verificationNotes?: string;
+  verificationFailedReason?: string;
+  verificationFailedBy?: string;
+  verificationFailedByName?: string;
+  verificationFailedAt?: string;
+  feedbackStatus?: 'PENDING' | 'COMPLETED';
+  feedbackRating?: 'Positive' | 'Neutral' | 'Negative';
+  feedbackNotes?: string;
+  feedbackBy?: string;
+  feedbackByName?: string;
+  feedbackAt?: string;
+  feedbackBusinessDate?: string;
 }
 
 export interface IAttendanceRecord {
@@ -351,10 +398,16 @@ export const companyService = {
 
   getLeads: async (): Promise<ICompanyLead[]> => (await api.get('/company/leads')).data.data,
   createLead: async (data: Omit<ICompanyLead, '_id'>): Promise<ICompanyLead> => (await api.post('/company/leads', data)).data.data,
-  updateLead: async (id: string, data: Omit<ICompanyLead, '_id'>): Promise<ICompanyLead> => (await api.patch(`/company/leads/${id}`, data)).data.data,
+  acceptLead: async (id: string): Promise<ICompanyLead> => (await api.post(`/company/leads/${id}/accept`)).data.data,
+  updateLead: async (id: string, data: Partial<ICompanyLead>): Promise<ICompanyLead> => (await api.patch(`/company/leads/${id}`, data)).data.data,
   deleteLead: async (id: string) => (await api.delete(`/company/leads/${id}`)).data.data,
   getSales: async (): Promise<ICompanySale[]> => (await api.get('/company/sales', { params: { failed: false, t: Date.now() }, headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache', Expires: '0' } })).data.data,
   getFailedSales: async (): Promise<ICompanySale[]> => (await api.get('/company/sales', { params: { failed: true, t: Date.now() }, headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache', Expires: '0' } })).data.data,
+  getVerifications: async (params: { status?: string } = {}): Promise<ICompanySale[]> => (await api.get('/company/verification', { params })).data.data,
+  startVerification: async (id: string): Promise<ICompanySale> => (await api.post(`/company/verification/${id}/start`)).data.data,
+  completeVerification: async (id: string, payload: { status: 'SUCCESSFUL' | 'FAILED'; notes?: string; failedReason?: string }): Promise<ICompanySale> => (await api.post(`/company/verification/${id}/complete`, payload)).data.data,
+  getFeedbacks: async (params: { status?: string } = {}): Promise<ICompanySale[]> => (await api.get('/company/feedback', { params })).data.data,
+  completeFeedback: async (id: string, payload: { rating: 'Positive' | 'Neutral' | 'Negative'; notes?: string }): Promise<ICompanySale> => (await api.post(`/company/feedback/${id}/complete`, payload)).data.data,
   getRemoteSupport: async (filters: Record<string, any> = {}): Promise<IRemoteSupportRecord[]> => (await api.get('/company/remote-support', { params: filters })).data.data,
   createRemoteSupport: async (data: Partial<IRemoteSupportRecord>) => (await api.post('/company/remote-support', data)).data.data,
   acceptRemoteSupport: async (id: string) => (await api.post(`/company/remote-support/${id}/accept`)).data.data,
@@ -388,4 +441,5 @@ export const companyService = {
   addHoliday: async (payload: { name: string; date: string }) => (await api.post('/company/settings/holidays', payload)).data.data,
   updateHoliday: async (hid: string, payload: { name?: string; date?: string }) => (await api.patch(`/company/settings/holidays/${hid}`, payload)).data.data,
   deleteHoliday: async (hid: string) => (await api.delete(`/company/settings/holidays/${hid}`)).data.data,
+  getTodaysWork: async () => (await api.get('/company/todays-work')).data.data,
 };

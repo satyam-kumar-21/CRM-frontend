@@ -18,6 +18,11 @@ import { AttendanceSection } from '../../company-admin/dashboard/components/Atte
 import { AnnouncementsSection } from '../../company-admin/dashboard/components';
 import { LeaveSection } from '../../company-admin/dashboard/components/LeaveSection';
 import { RemoteSupportSection } from '../../company-admin/dashboard/components/RemoteSupportSection';
+import { SalesTodaysWorkSection } from '../../company-admin/dashboard/components/SalesTodaysWorkSection';
+import { TechSupportTodaysWorkSection } from '../../company-admin/dashboard/components/TechSupportTodaysWorkSection';
+import { VerificationTodaysWorkSection } from '../../company-admin/dashboard/components/VerificationTodaysWorkSection';
+import { VerificationSection } from '../../company-admin/dashboard/components/VerificationSection';
+import { FeedbackSection } from '../../company-admin/dashboard/components/FeedbackSection';
 import { useCompanySettings, useCompanyValidation, type CompanySettingsResponse } from '@/lib/useCompanySettings';
 import type { ChatFilter, IEmployee, IGroupChannel, NavSection } from '../../company-admin/dashboard/types';
 
@@ -61,13 +66,23 @@ export default function EmployeeDashboardPage() {
     const role = employee?.role;
     if (role === 'SALES') {
       baseNavigation.push(
+        { id: 'todays-report' as NavSection, label: "Today's Work", icon: CalendarCheck },
         { id: 'leads' as NavSection, label: 'My Leads', icon: UserPlus },
         { id: 'sales' as NavSection, label: 'My Sales', icon: TrendingUp },
         { id: 'failed-sales' as NavSection, label: 'Failed Sales', icon: Flag },
         { id: 'remote-support' as NavSection, label: 'Remote Support', icon: LifeBuoy },
       );
     } else if (role === 'TECH_SUPPORT') {
-      baseNavigation.push({ id: 'remote-support' as NavSection, label: 'Support Tickets', icon: LifeBuoy });
+      baseNavigation.push(
+        { id: 'todays-report' as NavSection, label: "Today's Work", icon: CalendarCheck },
+        { id: 'remote-support' as NavSection, label: 'Support Tickets', icon: LifeBuoy },
+      );
+    } else if (role === 'VERIFICATION') {
+      baseNavigation.push(
+        { id: 'todays-report' as NavSection, label: "Today's Work", icon: CalendarCheck },
+        { id: 'verification' as NavSection, label: 'Verifications', icon: ShieldCheck },
+        { id: 'feedback' as NavSection, label: 'Feedback', icon: MessageSquare }
+      );
     } else if (role === 'IT') {
       baseNavigation.push({ id: 'projects' as NavSection, label: 'IT Projects', icon: Layers });
     }
@@ -91,7 +106,6 @@ export default function EmployeeDashboardPage() {
     if (!conversationId || message.isMine) return;
     const activityAt = message.createdAt || new Date().toISOString();
     const isActiveChat = conversationId === selectedChatId;
-    // Always update latestChatAt so list re-sorts; only bump unread for background chats
     setChatActivity((current) => ({ ...current, [conversationId]: { latestChatAt: activityAt, unreadCount: isActiveChat ? (current[conversationId]?.unreadCount || 0) : (current[conversationId]?.unreadCount || 0) + 1 } }));
   };
   const handleConversationRead = (conversationId: string) => {
@@ -113,7 +127,6 @@ export default function EmployeeDashboardPage() {
     if (!selectedChatId || !messageInput.trim()) return;
     const sentMessage = await companyService.postConversationMessage(selectedChatId, { content: messageInput.trim() });
     setMessageInput('');
-    // Immediately bump latestChatAt so list re-orders after sending
     const now = new Date().toISOString();
     setChatActivity((current) => ({ ...current, [selectedChatId]: { latestChatAt: now, unreadCount: current[selectedChatId]?.unreadCount || 0 } }));
     return sentMessage;
@@ -133,15 +146,27 @@ export default function EmployeeDashboardPage() {
     return <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-100"><p className="text-sm text-rose-400">Unable to validate session. Redirecting...</p></div>;
   }
 
-  return <ProtectedRoute roles={['EMPLOYEE', 'HR', 'MANAGER', 'TEAM_LEAD', 'SALES', 'TECH_SUPPORT', 'IT', 'INTERN']}><div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased"><div className="grid min-h-screen lg:grid-cols-[280px_1fr]"><CompanyAdminSidebar companyName={dashboardQuery.data?.company.name} userName={employee?.name || 'Employee'} userRole={employee?.role || 'Employee'} canOpenSettings={false} routePermissions={permissions} navigationMenu={employeeNavigation} activeSection={activeSection} setActiveSection={setActiveSection} /><main className="flex flex-col h-screen overflow-hidden bg-slate-950">
+  return <ProtectedRoute roles={['EMPLOYEE', 'HR', 'MANAGER', 'TEAM_LEAD', 'SALES', 'TECH_SUPPORT', 'VERIFICATION', 'FEEDBACK', 'IT', 'INTERN']}><div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased"><div className="grid min-h-screen lg:grid-cols-[280px_1fr]"><CompanyAdminSidebar companyName={dashboardQuery.data?.company.name} userName={employee?.name || 'Employee'} userRole={employee?.role || 'Employee'} canOpenSettings={false} routePermissions={permissions} navigationMenu={employeeNavigation} activeSection={activeSection} setActiveSection={setActiveSection} /><main className="flex flex-col h-screen overflow-hidden bg-slate-950">
     <WorkspaceNotificationWatcher dashboardPath="/employee/dashboard" onMessage={handleIncomingChatMessage} />
     {activeSection === 'overview' && employee && dashboardStats && (employee.role === 'MANAGER' ? <ManagerOverviewSection report={dashboardQuery.data?.stats?.todayReport} /> : <EmployeeOverviewSection employee={employee} stats={dashboardStats} remoteSupportSummary={dashboardQuery.data?.remoteSupportSummary} projectSummary={dashboardQuery.data?.projectSummary} setActiveSection={setActiveSection} />)}
     {activeSection === 'chat' && <EmployeeRouteGuard permissionKey="chat" routePermissions={permissions} permissionsLoading={settingsLoading}><ChatSection groups={groups} employees={employees} activeFilter={activeChatFilter} setActiveFilter={setActiveChatFilter} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} messageInput={messageInput} setMessageInput={setMessageInput} onSendMessage={sendMessage} onSendLead={canSendLeads ? handleSendLead : undefined} currentUserId={employee?._id} currentUserName={employee?.name || 'Employee'} currentUserRole={employee?.role} isAdmin={canSendLeads} onConversationRead={handleConversationRead} /></EmployeeRouteGuard>}
-    {activeSection === 'todays-report' && employee?.role === 'MANAGER' && <ManagerTodaysReportSection report={dashboardQuery.data?.stats?.todayReport} employees={dashboardQuery.data?.chatEmployees || []} />}
+    {activeSection === 'todays-report' && (
+      employee?.role === 'MANAGER' ? (
+        <ManagerTodaysReportSection report={dashboardQuery.data?.stats?.todayReport} employees={dashboardQuery.data?.chatEmployees || []} />
+      ) : employee?.role === 'SALES' ? (
+        <SalesTodaysWorkSection />
+      ) : employee?.role === 'TECH_SUPPORT' ? (
+        <TechSupportTodaysWorkSection />
+      ) : employee?.role === 'VERIFICATION' ? (
+        <VerificationTodaysWorkSection />
+      ) : null
+    )}
     {activeSection === 'leads' && <EmployeeRouteGuard permissionKey="leads" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><LeadsSection readOnly /></div></EmployeeRouteGuard>}
     {activeSection === 'sales' && <EmployeeRouteGuard permissionKey="sales" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><SalesSection readOnly /></div></EmployeeRouteGuard>}
     {activeSection === 'failed-sales' && <EmployeeRouteGuard permissionKey="failed-sales" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><FailedSalesSection /></div></EmployeeRouteGuard>}
     {activeSection === 'remote-support' && <EmployeeRouteGuard permissionKey="remote-support" routePermissions={permissions} permissionsLoading={settingsLoading}><RemoteSupportSection role={employee?.role} /></EmployeeRouteGuard>}
+    {activeSection === 'verification' && <VerificationSection />}
+    {activeSection === 'feedback' && <FeedbackSection />}
     {activeSection === 'projects' && <EmployeeRouteGuard permissionKey="projects" routePermissions={permissions} permissionsLoading={settingsLoading}><ProjectSection projects={projectQuery.data || []} loading={projectQuery.isLoading} /></EmployeeRouteGuard>}
     {activeSection === 'attendance' && <EmployeeRouteGuard permissionKey="attendance" routePermissions={permissions} permissionsLoading={settingsLoading}><AttendanceSection readOnly /></EmployeeRouteGuard>}
     {activeSection === 'announcements' && <EmployeeRouteGuard permissionKey="announcements" routePermissions={permissions} permissionsLoading={settingsLoading}><AnnouncementsSection readOnly /></EmployeeRouteGuard>}

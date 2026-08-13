@@ -314,58 +314,34 @@ export function ChatSection(props: ChatSectionProps) {
     setMessages((current) => current.map((item) => item._id === message._id ? { ...item, ...updated } : item));
   };
 
-  const actOnWorkflow = async (message: ICompanyMessage, workflow: LeadWorkflow, action: 'accept' | 'decline' | 'connected-yes' | 'connected-no' | 'sale-no' | 'sale-yes' | 'tech-support-yes' | 'tech-support-no', saleForm?: { amount: string; paymentMethod: NonNullable<LeadWorkflow['paymentMethod']> }) => {
+  const actOnWorkflow = async (message: ICompanyMessage, workflow: LeadWorkflow, action: 'accept' | 'decline') => {
     try {
       if (action === 'decline') return await updateWorkflow(message, { ...workflow, status: 'declined' });
       if (action === 'accept') {
-        const lead = await companyService.createLead({ ...workflow.lead, connected: 'no', connectedBy: currentUserName, isSale: 'no', workflowMessageId: message._id } as Omit<ICompanyLead, '_id'>);
-        return await updateWorkflow(message, { ...workflow, status: 'accepted', leadId: lead._id, acceptedBy: currentUserName });
-      }
-      if (!workflow.leadId) return;
-      if (action === 'connected-yes' || action === 'connected-no') {
-        const connected = action === 'connected-yes' ? 'yes' : 'no';
-        await companyService.updateLead(workflow.leadId, { ...workflow.lead, connected, connectedBy: workflow.acceptedBy || currentUserName, isSale: workflow.isSale || 'no' });
-        return await updateWorkflow(message, { ...workflow, status: 'connected', connected });
-      }
-      if (action === 'tech-support-no') {
-        return await updateWorkflow(message, { ...workflow, needsTechSupport: 'no' });
-      }
-      if (action === 'tech-support-yes') {
-        if (!currentUserId) {
-          toast.error('Unable to create tech support request: missing user ID');
-          return;
-        }
-        const supportRecord = await companyService.createRemoteSupport({
-          leadId: workflow.leadId,
-          workflowMessageId: message._id,
-          customerName: workflow.lead.name,
-          customerContact: workflow.lead.contactNo,
+        const lead = await companyService.createLead({
+          name: workflow.lead.name,
           country: workflow.lead.country,
           system: workflow.lead.system,
+          contactNo: workflow.lead.contactNo,
           otherDetails: workflow.lead.otherDetails,
-          salesEmployeeId: currentUserId,
-          salesEmployeeName: currentUserName,
-          dateTime: new Date().toISOString(),
-          issueReason: workflow.lead.otherDetails || 'Tech support requested after connection',
-          status: 'PENDING',
+          connected: 'no',
+          connectedBy: currentUserName,
+          isSale: 'no',
+          workflowMessageId: message._id,
         });
-        toast.success('Remote support request created successfully');
-        return await updateWorkflow(message, { ...workflow, needsTechSupport: 'yes', techSupportRequested: true, remoteSupportId: supportRecord._id });
+
+        if (lead && lead._id) {
+          await companyService.acceptLead(lead._id);
+        }
+
+        toast.success('Lead accepted successfully! Access lead details in Today\'s Report.');
+        return await updateWorkflow(message, {
+          ...workflow,
+          status: 'accepted',
+          leadId: lead._id,
+          acceptedBy: currentUserName,
+        });
       }
-      if (action === 'sale-no') {
-        await companyService.updateLead(workflow.leadId, { ...workflow.lead, connected: workflow.connected || 'no', connectedBy: workflow.acceptedBy || currentUserName, isSale: 'no' });
-        return await updateWorkflow(message, { ...workflow, status: 'connected', isSale: 'no' });
-      }
-      if (action === 'sale-yes' && !saleForm) {
-        setSaleForms((current) => ({ ...current, [message._id]: { amount: '', paymentMethod: 'Other' } }));
-        return;
-      }
-      const confirmedAmount = Number(saleForm?.amount || '');
-      if (!Number.isFinite(confirmedAmount) || confirmedAmount < 0) return;
-      if (!saleForm?.paymentMethod) return;
-      await companyService.createSale({ leadId: workflow.leadId, ...workflow.lead, connectedBy: currentUserName, amount: confirmedAmount, paymentMethod: saleForm.paymentMethod, saleDate: getBusinessDateString() });
-      await companyService.updateLead(workflow.leadId, { ...workflow.lead, connected: workflow.connected || 'no', connectedBy: workflow.acceptedBy || currentUserName, isSale: 'yes' });
-      return await updateWorkflow(message, { ...workflow, status: 'sale', isSale: 'yes', saleAmount: confirmedAmount, paymentMethod: saleForm.paymentMethod, closedBy: currentUserName });
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Unable to update lead workflow');
     }
@@ -506,75 +482,39 @@ export function ChatSection(props: ChatSectionProps) {
                               </div>
                             ) : null;
 
+                            const isAccepted = workflow.status !== 'pending' && workflow.status !== 'declined';
+                            const displayContact = isAccepted ? workflow.lead.contactNo : '**********';
+
                             return (
                               <div className="space-y-2">
-                                <p className="font-bold text-amber-300 flex items-center gap-1.5">📌 Lead Record</p>
-                                <div className="text-xs space-y-1 bg-slate-950/50 p-2.5 rounded-xl border border-slate-800">
-                                  <p><span className="text-slate-400">Name:</span> <strong className="text-white">{workflow.lead.name}</strong></p>
+                                <div className="flex items-center justify-between">
+                                  <p className="font-bold text-amber-300 flex items-center gap-1.5">📌 Lead Record</p>
+                                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isAccepted ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : workflow.status === 'declined' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
+                                    {isAccepted ? 'ACCEPTED' : workflow.status.toUpperCase()}
+                                  </span>
+                                </div>
+
+                                <div className="text-xs space-y-1 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                                  <p><span className="text-slate-400">Customer:</span> <strong className="text-white">{workflow.lead.name}</strong></p>
                                   <p><span className="text-slate-400">Country:</span> {workflow.lead.country}</p>
                                   <p><span className="text-slate-400">System:</span> {workflow.lead.system}</p>
-                                  <p><span className="text-slate-400">Contact:</span> {workflow.lead.contactNo}</p>
-                                  {workflow.lead.otherDetails && <p><span className="text-slate-400">Details:</span> {workflow.lead.otherDetails}</p>}
+                                  <p><span className="text-slate-400">Contact:</span> <strong className={isAccepted ? "text-emerald-400 font-mono" : "text-amber-400 font-mono tracking-widest"}>{displayContact}</strong></p>
+                                  {workflow.lead.otherDetails && <p><span className="text-slate-400">Other Details:</span> {workflow.lead.otherDetails}</p>}
                                 </div>
 
                                 {workflow.status === 'pending' && !message.isMine && (
                                   <div className="flex gap-2 pt-1">
-                                    <button onClick={() => void actOnWorkflow(message, workflow, 'accept')} className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow hover:bg-emerald-500">Accept</button>
-                                    <button onClick={() => void actOnWorkflow(message, workflow, 'decline')} className="rounded-lg bg-rose-600 px-3 py-1 text-xs font-semibold text-white shadow hover:bg-rose-500">Decline</button>
+                                    <button onClick={() => void actOnWorkflow(message, workflow, 'accept')} className="rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow hover:bg-emerald-500 transition-all">Accept</button>
+                                    <button onClick={() => void actOnWorkflow(message, workflow, 'decline')} className="rounded-lg bg-rose-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow hover:bg-rose-500 transition-all">Decline</button>
                                   </div>
                                 )}
-                                {workflow.status === 'pending' && message.isMine && <p className="text-xs text-slate-300 italic">Awaiting response...</p>}
-                                {workflow.status === 'declined' && <p className="font-semibold text-rose-300 text-xs">Declined</p>}
-                                {workflow.status !== 'pending' && workflow.status !== 'declined' && (
-                                  <>
-                                    <p className="text-xs text-slate-300">Accepted By: <strong>{workflow.acceptedBy}</strong></p>
-                                    {workflow.status === 'accepted' && !message.isMine && (
-                                      <div className="space-y-1 pt-1">
-                                        <p className="text-xs font-medium text-slate-300">Connected?</p>
-                                        <div className="flex gap-2">
-                                          <button onClick={() => void actOnWorkflow(message, workflow, 'connected-yes')} className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">Yes</button>
-                                          <button onClick={() => void actOnWorkflow(message, workflow, 'connected-no')} className="rounded-lg bg-slate-700 px-3 py-1 text-xs font-semibold text-white shadow">No</button>
-                                        </div>
-                                      </div>
-                                    )}
-                                    {workflow.status !== 'accepted' && <p className="text-xs">Connected: <strong>{workflow.connected === 'yes' ? 'Yes' : 'No'}</strong></p>}
-                                    {workflow.status === 'connected' && workflow.needsTechSupport === undefined && !message.isMine && currentUserRole === 'SALES' && (
-                                      <div className="space-y-1 pt-1">
-                                        <p className="text-xs font-medium text-slate-300">Need Tech Support?</p>
-                                        <div className="flex gap-2">
-                                          <button onClick={() => void actOnWorkflow(message, workflow, 'tech-support-yes')} className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">Yes</button>
-                                          <button onClick={() => void actOnWorkflow(message, workflow, 'tech-support-no')} className="rounded-lg bg-slate-700 px-3 py-1 text-xs font-semibold text-white shadow">No</button>
-                                        </div>
-                                      </div>
-                                    )}
-                                    {workflow.status === 'connected' && workflow.isSale === undefined && !message.isMine && currentUserRole === 'SALES' && (workflow.needsTechSupport === 'no' || latestSupport?.status === 'SUCCESSFUL') && (
-                                      <div className="space-y-1 pt-1">
-                                        <p className="text-xs font-medium text-slate-300">Is Sale?</p>
-                                        <div className="flex gap-2">
-                                          <button onClick={() => void actOnWorkflow(message, workflow, 'sale-yes')} className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">Yes</button>
-                                          <button onClick={() => void actOnWorkflow(message, workflow, 'sale-no')} className="rounded-lg bg-slate-700 px-3 py-1 text-xs font-semibold text-white shadow">No</button>
-                                        </div>
-                                      </div>
-                                    )}
-                                    {workflow.needsTechSupport === 'yes' && latestSupport?.status !== 'SUCCESSFUL' && (
-                                      <p className="text-xs text-amber-300">Tech support requested. Waiting on support outcome.</p>
-                                    )}
-                                    {latestSupport?.status === 'FAILED' && (
-                                      <p className="text-xs text-rose-300">Remote support failed. Lead completed as lead-only.</p>
-                                    )}
-                                    {latestSupport?.status === 'REJECTED' && (
-                                      <p className="text-xs text-rose-300">Remote support rejected. Lead completed as lead-only.</p>
-                                    )}
-                                    {workflow.isSale === 'no' && <p className="text-xs text-slate-300">Sale: No</p>}
-                                    {supportBadge}
-                                    {workflow.isSale === 'yes' && (
-                                      <div className="mt-2 rounded-xl bg-emerald-950/60 p-2 border border-emerald-500/30 text-xs text-emerald-200">
-                                        <p className="font-bold text-emerald-300">✅ Sale Completed</p>
-                                        <p>Amount: ${workflow.saleAmount?.toLocaleString()}</p>
-                                        <p>Closed By: {workflow.closedBy}</p>
-                                      </div>
-                                    )}
-                                  </>
+                                {workflow.status === 'pending' && message.isMine && <p className="text-xs text-slate-400 italic">Awaiting Sales employee acceptance...</p>}
+                                {workflow.status === 'declined' && <p className="font-semibold text-rose-400 text-xs">Declined</p>}
+                                {isAccepted && (
+                                  <div className="rounded-xl bg-emerald-950/40 p-2.5 border border-emerald-500/20 text-xs text-emerald-200">
+                                    <p className="font-semibold text-emerald-400">✅ Accepted by {workflow.acceptedBy}</p>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">Manage lead workflow & updates from Today&apos;s Report.</p>
+                                  </div>
                                 )}
                               </div>
                             );
@@ -619,46 +559,7 @@ export function ChatSection(props: ChatSectionProps) {
           <div ref={bottomRef} />
         </div>
 
-        {/* Sale Form Modal Bar */}
-        {saleMessage && saleWorkflow && saleForms[saleMessage._id] && (
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const form = saleForms[saleMessage._id];
-              if (!form.amount) { toast.error('Enter a sale amount'); return; }
-              await actOnWorkflow(saleMessage, saleWorkflow, 'sale-yes', form);
-              setSaleForms((cur) => { const n = { ...cur }; delete n[saleMessage._id]; return n; });
-            }}
-            className="border-t border-emerald-500/20 bg-slate-900/95 p-4"
-          >
-            <div className="mx-auto flex max-w-2xl flex-col gap-3 rounded-xl border border-slate-700 bg-slate-950 p-4 shadow-lg">
-              <div>
-                <p className="text-sm font-semibold text-white">Complete Sale</p>
-                <p className="mt-1 text-xs text-slate-400">{saleWorkflow.lead.name} · Enter sale amount and payment mode.</p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="space-y-1 text-xs text-slate-400">
-                  <span>Sale Amount</span>
-                  <input required min="0" step="0.01" type="number" value={saleForms[saleMessage._id].amount} onChange={(e) => setSaleForms((cur) => ({ ...cur, [saleMessage._id]: { ...cur[saleMessage._id], amount: e.target.value } }))} className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" placeholder="0.00" />
-                </label>
-                <label className="space-y-1 text-xs text-slate-400">
-                  <span>Payment Mode</span>
-                  <select required value={saleForms[saleMessage._id].paymentMethod} onChange={(e) => setSaleForms((cur) => ({ ...cur, [saleMessage._id]: { ...cur[saleMessage._id], paymentMethod: e.target.value as NonNullable<LeadWorkflow['paymentMethod']> } }))} className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500">
-                    <option value="Card">Card</option>
-                    <option value="Check">Check</option>
-                    <option value="Wire Transfer">Wire Transfer</option>
-                    <option value="Cash">Cash</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </label>
-              </div>
-              <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setSaleForms({})} className="rounded-lg bg-slate-700 px-3 py-2 text-xs text-white">Cancel</button>
-                <button className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white"><Check className="mr-1 inline h-3.5 w-3.5" />Confirm Sale</button>
-              </div>
-            </div>
-          </form>
-        )}
+
 
         {/* Lead Form Bar */}
         {showLeadForm && (

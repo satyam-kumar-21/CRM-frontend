@@ -23,6 +23,8 @@ import { AdminSalesSection } from './components/AdminSalesSection';
 import { FailedSalesSection } from './components/FailedSalesSection';
 import { OverviewSection } from './components/OverviewSection';
 import { RemoteSupportSection } from './components/RemoteSupportSection';
+import { VerificationSection } from './components/VerificationSection';
+import { FeedbackSection } from './components/FeedbackSection';
 import { SettingsSection } from './components/SettingsSection';
 import { WorkspaceNotificationWatcher } from './components/WorkspaceNotificationWatcher';
 import { AttendanceSection } from './components/AttendanceSection';
@@ -67,7 +69,6 @@ export default function CompanyAdminDashboardPage() {
     if (!conversationId || message.isMine) return;
     const activityAt = message.createdAt || new Date().toISOString();
     const isActiveChat = conversationId === selectedChatId;
-    // Always update latestChatAt so list re-sorts; only bump unread when it's a background chat
     setEmployeesList((current) => current.map((employee) => employee.id === conversationId ? { ...employee, latestChatAt: activityAt, unreadCount: isActiveChat ? employee.unreadCount : employee.unreadCount + 1 } : employee));
     setGroupsList((current) => current.map((group) => group.id === conversationId ? { ...group, latestChatAt: activityAt, unreadCount: isActiveChat ? group.unreadCount : group.unreadCount + 1 } : group));
   };
@@ -105,6 +106,8 @@ export default function CompanyAdminDashboardPage() {
     { id: 'sales', label: 'Sales', icon: TrendingUp },
     { id: 'failed-sales', label: 'Failed Sales', icon: Flag },
     { id: 'remote-support', label: 'Remote Support', icon: UserPlus },
+    { id: 'verification', label: 'Verification', icon: Flag },
+    { id: 'feedback', label: 'Feedback', icon: MessageSquare },
     { id: 'todays-report', label: "Today's Report", icon: CalendarCheck },
     { id: 'attendance', label: 'Attendance', icon: CalendarCheck },
     { id: 'salary', label: 'Salary', icon: TrendingUp },
@@ -117,7 +120,6 @@ export default function CompanyAdminDashboardPage() {
     if (!chatMessageInput.trim()) return;
     const sentMessage = await companyService.postConversationMessage(selectedChatId, { content: chatMessageInput.trim() });
     setChatMessageInput('');
-    // Immediately bump latestChatAt so list re-orders after sending
     const now = new Date().toISOString();
     setEmployeesList((current) => current.map((emp) => emp.id === selectedChatId ? { ...emp, latestChatAt: now } : emp));
     setGroupsList((current) => current.map((grp) => grp.id === selectedChatId ? { ...grp, latestChatAt: now } : grp));
@@ -148,79 +150,67 @@ export default function CompanyAdminDashboardPage() {
           salesTarget: {
             ...item.salesTarget,
             monthlyTarget: updatedEmployee.monthlySalesTarget !== undefined ? updatedEmployee.monthlySalesTarget : (updatedEmployee.role === 'SALES' ? item.salesTarget.monthlyTarget : 0),
-            monthlyAchieved: item.salesTarget.monthlyAchieved,
-            yearlyTarget: item.salesTarget.yearlyTarget,
-            yearlyAchieved: item.salesTarget.yearlyAchieved,
-            hourlyAchievedToday: item.salesTarget.hourlyAchievedToday,
           },
-          remoteTarget: updatedEmployee.remoteTarget ?? item.remoteTarget,
+          remoteTarget: updatedEmployee.remoteTarget !== undefined ? updatedEmployee.remoteTarget : item.remoteTarget,
         } : item));
-        toast.success('Employee updated successfully');
+        toast.success(`${updatedEmployee.name || editingEmployee.name} updated`);
       } else {
-        if (!newEmpPassword) {
-          toast.error('Password is required for new employees');
-          return;
-        }
-        const createdEmployee = await companyService.createEmployee({ ...payload, password: newEmpPassword });
-        setEmployeesList((current) => [mapCompanyEmployee({ ...createdEmployee, _id: createdEmployee.id, employeeId: createdEmployee.employeeId, phone: newEmpPhone, monthlySalesTarget: newEmpRole === 'SALES' ? Number(newEmpTarget) || 0 : 0, monthlySalesAchieved: 0, leadsAssigned: 0, leadsConverted: 0, isSuspended: false, createdAt: new Date().toISOString(), remoteTarget: newEmpRole === 'TECH_SUPPORT' ? Number(newEmpRemoteTarget) || 0 : undefined }), ...current]);
-        toast.success('Employee account created');
+        const createdEmployee = await companyService.createEmployee(payload);
+        setEmployeesList((current) => [mapCompanyEmployee(createdEmployee), ...current]);
+        toast.success(`${createdEmployee.name} created`);
       }
 
-      setEditingEmployee(null);
-      setNewEmpId(''); setNewEmpUsername(''); setNewEmpName(''); setNewEmpEmail(''); setNewEmpPassword(''); setNewEmpPhone(''); setNewEmpRole('EMPLOYEE'); setNewEmpTarget(40000); setNewEmpRemoteTarget(0);
       setShowAddEmployeeModal(false);
+      setEditingEmployee(null);
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Unable to save employee account');
+      toast.error(error.response?.data?.message || 'Unable to save employee');
     }
   };
 
   const handleCreateGroupSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!newGroupName.trim()) return;
-    if (newGroupPrivacy === 'private' && !newGroupMemberIds.length) {
-      toast.error('Select at least one employee for a private group');
-      return;
-    }
     try {
-      const group = editingGroup
-        ? await companyService.updateGroup(editingGroup.id, { name: newGroupName.trim(), description: newGroupDesc.trim(), privacy: newGroupPrivacy, memberIds: newGroupMemberIds })
-        : await companyService.createGroup({ name: newGroupName.trim(), description: newGroupDesc.trim(), privacy: newGroupPrivacy, memberIds: newGroupMemberIds });
-      const mappedGroup = { id: group._id, name: group.name, description: group.description, members: group.members, membersCount: group.members?.length || 0, privacy: group.privacy, createdDate: new Date(group.createdAt).toLocaleDateString(), latestChatAt: group.latestChatAt, unreadCount: group.unreadCount || 0 };
-      setGroupsList((current) => editingGroup ? current.map((item) => item.id === editingGroup.id ? mappedGroup : item) : [mappedGroup, ...current]);
-      setNewGroupName(''); setNewGroupDesc(''); setNewGroupPrivacy('public'); setNewGroupMemberIds([]); setShowCreateGroupModal(false);
+      if (editingGroup) {
+        const updatedGroup = await companyService.updateGroup(editingGroup.id, { name: newGroupName.trim(), description: newGroupDesc.trim(), privacy: newGroupPrivacy, memberIds: newGroupMemberIds });
+        setGroupsList((current) => current.map((item) => item.id === editingGroup.id ? { ...item, name: updatedGroup.name, description: updatedGroup.description, privacy: updatedGroup.privacy, members: updatedGroup.members, membersCount: updatedGroup.members?.length || 0 } : item));
+        toast.success('Channel updated');
+      } else {
+        const createdGroup = await companyService.createGroup({ name: newGroupName.trim(), description: newGroupDesc.trim(), privacy: newGroupPrivacy, memberIds: newGroupMemberIds });
+        setGroupsList((current) => [{ id: createdGroup._id, name: createdGroup.name, description: createdGroup.description, members: createdGroup.members, membersCount: createdGroup.members?.length || 0, privacy: createdGroup.privacy, createdDate: new Date(createdGroup.createdAt).toLocaleDateString(), unreadCount: 0 }, ...current]);
+        toast.success('Channel created');
+      }
+      setShowCreateGroupModal(false);
       setEditingGroup(null);
-      toast.success(editingGroup ? 'Group updated successfully' : 'Group created successfully');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Unable to create group');
+      toast.error(error.response?.data?.message || 'Unable to save group');
     }
   };
 
   const handleEditGroup = (group: IGroupChannel) => {
-    setNewGroupName(group.name);
-    setNewGroupDesc(group.description);
-    setNewGroupPrivacy(group.privacy);
-    setNewGroupMemberIds(group.members?.filter((id) => companyEmployees?.some((employee) => employee._id === id)) || []);
     setEditingGroup(group);
+    setNewGroupName(group.name);
+    setNewGroupDesc(group.description || '');
+    setNewGroupPrivacy(group.privacy);
+    setNewGroupMemberIds(group.members || []);
     setShowCreateGroupModal(true);
   };
 
   const handleDeleteGroup = async (group: IGroupChannel) => {
-    if (!window.confirm(`Delete ${group.name}? Its messages will also be deleted.`)) return;
+    if (!window.confirm(`Delete channel #${group.name}?`)) return;
     try {
       await companyService.deleteGroup(group.id);
       setGroupsList((current) => current.filter((item) => item.id !== group.id));
-      setSelectedChatId((current) => current === group.id ? '' : current);
-      toast.success('Group deleted successfully');
+      toast.success('Channel deleted');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Unable to delete group');
+      toast.error(error.response?.data?.message || 'Unable to delete channel');
     }
   };
 
   const handleToggleEmployeeBlock = async (employee: IEmployee) => {
     try {
-      await companyService.updateEmployeeStatus(employee.id, !employee.isSuspended);
-      setEmployeesList((current) => current.map((item) => item.id === employee.id ? { ...item, isSuspended: !employee.isSuspended, status: !employee.isSuspended ? 'offline' : 'active' } : item));
-      toast.success(`${employee.name} ${employee.isSuspended ? 'unblocked' : 'blocked'}`);
+      const updatedEmployee = await companyService.updateEmployeeStatus(employee.id, !employee.isSuspended);
+      setEmployeesList((current) => current.map((item) => item.id === employee.id ? { ...item, isSuspended: updatedEmployee.isSuspended } : item));
+      toast.success(`${employee.name} ${updatedEmployee.isSuspended ? 'blocked' : 'unblocked'}`);
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Unable to update employee status');
     }
@@ -273,6 +263,8 @@ export default function CompanyAdminDashboardPage() {
     {activeSection === 'sales' && <AdminSalesSection />}
     {activeSection === 'failed-sales' && <FailedSalesSection />}
     {activeSection === 'remote-support' && <RemoteSupportSection role={dashboard?.employee?.role} isAdmin />}
+    {activeSection === 'verification' && <VerificationSection />}
+    {activeSection === 'feedback' && <FeedbackSection />}
     {activeSection === 'leads' && <LeadsSection />}
     {activeSection === 'attendance' && <AttendanceSection />}
     {activeSection === 'salary' && <SalaryLeaveSection />}
