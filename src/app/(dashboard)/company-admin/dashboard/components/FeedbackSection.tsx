@@ -5,8 +5,9 @@ import { MessageSquare, ThumbsUp, Minus, ThumbsDown, CheckCircle, Clock, Search 
 import { toast } from 'sonner';
 import { io } from 'socket.io-client';
 import { companyService, ICompanySale } from '@/services/companyService';
+import { maskSensitiveValue } from '@/lib/utils';
 
-export function FeedbackSection() {
+export function FeedbackSection({ employeeView = false }: { employeeView?: boolean }) {
   const [records, setRecords] = useState<ICompanySale[]>([]);
   const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING' | 'COMPLETED'>('ALL');
   const [search, setSearch] = useState('');
@@ -150,6 +151,7 @@ export function FeedbackSection() {
                   <td className="p-3.5">
                     <p className="font-bold text-white text-sm">{rec.name}</p>
                     <p className="text-[11px] text-slate-400">{rec.country} · {rec.system}</p>
+                    {employeeView && rec.customerEmail && <p className="text-[10px] text-slate-500">Email: {maskSensitiveValue(rec.customerEmail)}</p>}
                   </td>
                   <td className="p-3.5">
                     <p className="font-semibold text-slate-200">Sales: {rec.salesEmployeeName || rec.connectedBy}</p>

@@ -5,8 +5,9 @@ import { ShieldCheck, CheckCircle, XCircle, Clock, Play, AlertCircle, Phone, Dol
 import { toast } from 'sonner';
 import { io } from 'socket.io-client';
 import { companyService, ICompanySale } from '@/services/companyService';
+import { maskSensitiveValue } from '@/lib/utils';
 
-export function VerificationSection() {
+export function VerificationSection({ employeeView = false }: { employeeView?: boolean }) {
   const [records, setRecords] = useState<ICompanySale[]>([]);
   const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING' | 'IN_PROGRESS' | 'SUCCESSFUL' | 'FAILED'>('ALL');
   const [search, setSearch] = useState('');
@@ -312,7 +313,7 @@ export function VerificationSection() {
                       )}
                     </div>
                     <p className="text-[11px] text-slate-400">{rec.country} · {rec.system}{rec.plan ? ` · ${rec.plan}` : ''}</p>
-                    {rec.customerEmail && <p className="text-[10px] text-slate-400">{rec.customerEmail}{rec.alternateContactNo ? ` · Alt: ${rec.alternateContactNo}` : ''}</p>}
+                    {rec.customerEmail && <p className="text-[10px] text-slate-400">{employeeView ? `${maskSensitiveValue(rec.customerEmail)}${rec.alternateContactNo ? ` · Alt: ${maskSensitiveValue(rec.alternateContactNo)}` : ''}` : `${rec.customerEmail}${rec.alternateContactNo ? ` · Alt: ${rec.alternateContactNo}` : ''}`}</p>}
                     {rec.customerAddress && <p className="text-[10px] text-slate-500 truncate max-w-xs">{rec.customerAddress}</p>}
                   </td>
                   <td className="p-3.5">

@@ -5,13 +5,14 @@ import { Building2, Download, Flag } from 'lucide-react';
 import { toast } from 'sonner';
 import { companyService, ICompanySale } from '@/services/companyService';
 import { matchesBusinessDateFilters } from '@/lib/businessDate';
+import { maskSensitiveValue } from '@/lib/utils';
 
 const input = 'rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500';
 
 type Filters = { employee: string; customer: string; month: string; from: string; to: string };
 const emptyFilters: Filters = { employee: '', customer: '', month: '', from: '', to: '' };
 
-export function FailedSalesSection() {
+export function FailedSalesSection({ employeeView = false }: { employeeView?: boolean }) {
   const [sales, setSales] = useState<ICompanySale[]>([]);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
 
@@ -28,6 +29,7 @@ export function FailedSalesSection() {
   )), [sales, filters]);
 
   const revenue = filtered.reduce((total, sale) => total + sale.amount, 0);
+  const maskField = (value?: string) => (employeeView ? maskSensitiveValue(value) : value || '—');
 
   return (
     <section className="min-h-full space-y-5 overflow-y-auto bg-slate-950 p-6 text-slate-100">
@@ -57,7 +59,7 @@ export function FailedSalesSection() {
                 <td className="p-3 text-emerald-400">${sale.amount.toLocaleString()}</td>
                 <td className="p-3">{sale.connectedBy}</td>
                 <td className="p-3">{sale.saleDate}</td>
-                <td className="p-3 text-slate-200">{sale.failedReason || 'N/A'}</td>
+                <td className="p-3 text-slate-200">{employeeView ? maskField(sale.failedReason) : sale.failedReason || 'N/A'}</td>
               </tr>
             ))}
           </tbody>

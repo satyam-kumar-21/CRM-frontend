@@ -163,10 +163,10 @@ export default function EmployeeDashboardPage() {
     )}
     {activeSection === 'leads' && <EmployeeRouteGuard permissionKey="leads" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><LeadsSection readOnly /></div></EmployeeRouteGuard>}
     {activeSection === 'sales' && <EmployeeRouteGuard permissionKey="sales" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><SalesSection readOnly /></div></EmployeeRouteGuard>}
-    {activeSection === 'failed-sales' && <EmployeeRouteGuard permissionKey="failed-sales" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><FailedSalesSection /></div></EmployeeRouteGuard>}
+    {activeSection === 'failed-sales' && <EmployeeRouteGuard permissionKey="failed-sales" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><FailedSalesSection employeeView /></div></EmployeeRouteGuard>}
     {activeSection === 'remote-support' && <EmployeeRouteGuard permissionKey="remote-support" routePermissions={permissions} permissionsLoading={settingsLoading}><RemoteSupportSection role={employee?.role} /></EmployeeRouteGuard>}
-    {activeSection === 'verification' && <VerificationSection />}
-    {activeSection === 'feedback' && <FeedbackSection />}
+    {activeSection === 'verification' && <VerificationSection employeeView />}
+    {activeSection === 'feedback' && <FeedbackSection employeeView />}
     {activeSection === 'projects' && <EmployeeRouteGuard permissionKey="projects" routePermissions={permissions} permissionsLoading={settingsLoading}><ProjectSection projects={projectQuery.data || []} loading={projectQuery.isLoading} /></EmployeeRouteGuard>}
     {activeSection === 'attendance' && <EmployeeRouteGuard permissionKey="attendance" routePermissions={permissions} permissionsLoading={settingsLoading}><AttendanceSection readOnly /></EmployeeRouteGuard>}
     {activeSection === 'announcements' && <EmployeeRouteGuard permissionKey="announcements" routePermissions={permissions} permissionsLoading={settingsLoading}><AnnouncementsSection readOnly /></EmployeeRouteGuard>}
