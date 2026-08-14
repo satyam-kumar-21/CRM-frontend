@@ -7,8 +7,8 @@ import type { ICompanyDashboard } from '@/services/companyService';
 type Props = { report?: ICompanyDashboard['stats']['todayReport'] };
 
 export default function TodaysReportSection({ report }: Props) {
-  const r = report || { leads: 0, salesCount: 0, salesAmount: 0, failedSales: 0, remote: { successful: 0, failed: 0, total: 0 }, lists: { leads: [], sales: [], failed: [], remote: [] }, businessDate: { start: '', end: '' } } as any;
-  const [activeTab, setActiveTab] = useState<'leads' | 'sales' | 'failed' | 'remote'>('leads');
+  const r = report || { leads: 0, salesCount: 0, salesAmount: 0, failedSales: 0, verifications: { pending: 0, successful: 0, failed: 0, total: 0 }, remote: { successful: 0, failed: 0, total: 0 }, lists: { leads: [], sales: [], failed: [], remote: [], verifications: [] }, businessDate: { start: '', end: '' } } as any;
+  const [activeTab, setActiveTab] = useState<'leads' | 'sales' | 'failed' | 'remote' | 'verification'>('leads');
   const [search, setSearch] = useState('');
 
   const businessDateLabel = useMemo(() => {
@@ -38,6 +38,7 @@ export default function TodaysReportSection({ report }: Props) {
   const filteredSales = (r.lists?.sales || []).filter((s: any) => !search || `${s.name} ${s.connectedBy}`.toLowerCase().includes(search.toLowerCase()));
   const filteredFailed = (r.lists?.failed || []).filter((s: any) => !search || `${s.name} ${s.connectedBy}`.toLowerCase().includes(search.toLowerCase()));
   const filteredRemote = (r.lists?.remote || []).filter((m: any) => !search || `${m.customerName} ${m.salesEmployeeName} ${m.techSupportEmployeeName}`.toLowerCase().includes(search.toLowerCase()));
+  const filteredVerifications = (r.lists?.verifications || []).filter((v: any) => !search || `${v.name} ${v.verificationEmployeeName}`.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <section className="min-h-full space-y-6 overflow-y-auto bg-slate-950 p-6 text-slate-100">
@@ -57,9 +58,9 @@ export default function TodaysReportSection({ report }: Props) {
         <Card label="Today's Failed Sales" value={r.failedSales} icon={Flag} />
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
           <div className="mt-2 grid gap-3">
-            <OverviewRow label="Successful Remote" value={r.remote?.successful ?? 0} />
-            <OverviewRow label="Failed Remote" value={r.remote?.failed ?? 0} />
-            <div className="border-t border-slate-800 pt-3"><OverviewRow label="Total Remote" value={r.remote?.total ?? 0} /></div>
+            <OverviewRow label="Verifications Pending" value={r.verifications?.pending ?? 0} />
+            <OverviewRow label="Verifications Done" value={r.verifications?.successful ?? 0} />
+            <div className="border-t border-slate-800 pt-3"><OverviewRow label="Total Verifications" value={r.verifications?.total ?? 0} /></div>
           </div>
         </div>
       </div>
@@ -71,6 +72,7 @@ export default function TodaysReportSection({ report }: Props) {
             <button onClick={() => setActiveTab('sales')} className={`px-4 py-2 rounded-lg ${activeTab === 'sales' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>Sales</button>
             <button onClick={() => setActiveTab('failed')} className={`px-4 py-2 rounded-lg ${activeTab === 'failed' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>Failed</button>
             <button onClick={() => setActiveTab('remote')} className={`px-4 py-2 rounded-lg ${activeTab === 'remote' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>Remote</button>
+            <button onClick={() => setActiveTab('verification')} className={`px-4 py-2 rounded-lg ${activeTab === 'verification' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>Verification</button>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-2">
@@ -117,6 +119,13 @@ export default function TodaysReportSection({ report }: Props) {
             <table className="min-w-full text-left text-xs text-slate-300">
               <thead className="bg-slate-950/70 text-slate-400 uppercase"><tr><th className="p-3">Customer</th><th className="p-3">Sales Emp</th><th className="p-3">Tech Emp</th><th className="p-3">Status</th><th className="p-3">Date</th></tr></thead>
               <tbody className="divide-y divide-slate-800/60">{filteredRemote.map((m: any) => (<tr key={m._id} className="hover:bg-slate-950/50"><td className="p-3 font-semibold text-white">{m.customerName}</td><td className="p-3 text-slate-400">{m.salesEmployeeName}</td><td className="p-3 text-slate-400">{m.techSupportEmployeeName || 'N/A'}</td><td className="p-3">{m.status}</td><td className="p-3 text-slate-400">{new Date(m.dateTime).toLocaleString()}</td></tr>))}</tbody>
+            </table>
+          )}
+
+          {activeTab === 'verification' && (
+            <table className="min-w-full text-left text-xs text-slate-300">
+              <thead className="bg-slate-950/70 text-slate-400 uppercase"><tr><th className="p-3">Customer</th><th className="p-3">Amount</th><th className="p-3">Verification Emp</th><th className="p-3">Status</th><th className="p-3">Feedback</th></tr></thead>
+              <tbody className="divide-y divide-slate-800/60">{filteredVerifications.map((v: any) => (<tr key={v._id} className="hover:bg-slate-950/50"><td className="p-3 font-semibold text-white">{v.name}</td><td className="p-3 text-emerald-400">${Number(v.amount).toLocaleString()}</td><td className="p-3 text-slate-400">{v.verificationEmployeeName || 'Unassigned'}</td><td className="p-3"><span className={`inline-flex px-2 py-1 rounded text-[11px] font-bold ${v.verificationStatus === 'SUCCESSFUL' ? 'bg-emerald-500/20 text-emerald-300' : v.verificationStatus === 'FAILED' ? 'bg-rose-500/20 text-rose-300' : 'bg-amber-500/20 text-amber-300'}`}>{v.verificationStatus}</span></td><td className="p-3"><span className={`inline-flex px-2 py-1 rounded text-[11px] font-bold ${v.feedbackRating === 'Positive' ? 'bg-emerald-500/20 text-emerald-300' : v.feedbackRating === 'Negative' ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-500/20 text-slate-300'}`}>{v.feedbackRating || 'Pending'}</span></td></tr>))}</tbody>
             </table>
           )}
         </div>

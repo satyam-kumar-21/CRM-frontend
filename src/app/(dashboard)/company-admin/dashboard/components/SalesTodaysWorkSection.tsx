@@ -5,7 +5,7 @@ import {
   CalendarCheck, Phone, Globe, Monitor, CheckCircle, XCircle,
   Clock, DollarSign, Send, Shield, AlertTriangle, User,
   Banknote, Wrench, Mail, MapPin, FileText, CreditCard,
-  Building, Check, X, Sparkles, Smartphone, Layers
+  Building, Check, X, Sparkles, Smartphone, Layers, Percent
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { io } from 'socket.io-client';
@@ -14,6 +14,8 @@ import { companyService, ICompanyLead } from '@/services/companyService';
 type PaymentMethod = 'Card' | 'Check' | 'Wire Transfer' | 'Cash' | 'UPI' | 'Bank Transfer' | 'Online' | 'Other';
 
 interface CloseSaleFormState {
+  customerName: string;
+  customerType: 'NEW' | 'EXISTING_CUSTOMER' | 'UPGRADE';
   customerEmail: string;
   alternateContactNo: string;
   customerAddress: string;
@@ -21,7 +23,12 @@ interface CloseSaleFormState {
   plan: string;
   paymentMerchant: string;
   salePaymentMethod: PaymentMethod;
-  saleAmount: string;
+  mainAmount: string;
+  upgradedAmount: string;
+  salesTaxType: 'PERCENTAGE' | 'DIRECT_AMOUNT';
+  salesTaxValue: string;
+  salesTaxAmount: string;
+  finalAmount: string;
 }
 
 /* ─── helpers ─────────────────────────────────────────────── */
@@ -84,6 +91,8 @@ export function SalesTodaysWorkSection() {
   // Closing Sale Modal / Form state
   const [closingLead, setClosingLead] = useState<ICompanyLead | null>(null);
   const [closingForm, setClosingForm] = useState<CloseSaleFormState>({
+    customerName: '',
+    customerType: 'NEW',
     customerEmail: '',
     alternateContactNo: '',
     customerAddress: '',
@@ -91,7 +100,12 @@ export function SalesTodaysWorkSection() {
     plan: '1 Year Tech Support',
     paymentMerchant: 'Stripe',
     salePaymentMethod: 'Card',
-    saleAmount: '',
+    mainAmount: '',
+    upgradedAmount: '',
+    salesTaxType: 'PERCENTAGE',
+    salesTaxValue: '10',
+    salesTaxAmount: '',
+    finalAmount: '',
   });
 
   const fetchLeads = async () => {
@@ -166,8 +180,13 @@ export function SalesTodaysWorkSection() {
 
   // Step 5: Open Closing Modal / Form
   const openClosingModal = (lead: ICompanyLead) => {
+    const main = Number(lead.saleAmount || 0);
+    const defaultTax = 10;
+    const taxAmount = Number(((main || 0) * defaultTax) / 100);
     setClosingLead(lead);
     setClosingForm({
+      customerName: lead.name || '',
+      customerType: lead.customerType || 'NEW',
       customerEmail: lead.customerEmail || '',
       alternateContactNo: lead.alternateContactNo || '',
       customerAddress: lead.customerAddress || '',
@@ -175,8 +194,27 @@ export function SalesTodaysWorkSection() {
       plan: lead.plan || '1 Year Tech Support',
       paymentMerchant: lead.paymentMerchant || 'Stripe',
       salePaymentMethod: lead.salePaymentMethod || 'Card',
-      saleAmount: String(lead.saleAmount || ''),
+      mainAmount: String(main || ''),
+      upgradedAmount: '0',
+      salesTaxType: 'PERCENTAGE',
+      salesTaxValue: String(defaultTax),
+      salesTaxAmount: String(taxAmount),
+      finalAmount: String(main + taxAmount),
     });
+  };
+
+  const recalculateFinalAmount = (form: CloseSaleFormState) => {
+    const main = Number(form.mainAmount || 0);
+    const upgraded = Number(form.upgradedAmount || 0);
+    const taxValue = Number(form.salesTaxValue || 0);
+    const salesTaxAmount = form.salesTaxType === 'PERCENTAGE'
+      ? ((main + upgraded) * taxValue) / 100
+      : Number(form.salesTaxAmount || 0);
+    const finalAmount = main + upgraded + salesTaxAmount;
+    return {
+      salesTaxAmount,
+      finalAmount,
+    };
   };
 
   // Step 5: Submit Final Sale Closure
@@ -184,17 +222,20 @@ export function SalesTodaysWorkSection() {
     e.preventDefault();
     if (!closingLead) return;
 
-    const amountNum = Number(closingForm.saleAmount);
-    if (!amountNum || amountNum <= 0) {
-      toast.error('Please enter a valid sale amount ($)');
+    const computed = recalculateFinalAmount(closingForm);
+    const finalAmount = Number(computed.finalAmount || 0);
+    if (!finalAmount || finalAmount <= 0) {
+      toast.error('Please enter valid sales amounts to complete the sale.');
       return;
     }
 
     try {
       setSavingId(closingLead._id);
-      await companyService.updateLead(closingLead._id, {
+      const updatedLead = await companyService.updateLead(closingLead._id, {
+        name: closingForm.customerName.trim() || closingLead.name,
+        customerType: closingForm.customerType,
         finalStatus: 'CLOSED',
-        saleAmount: amountNum,
+        saleAmount: finalAmount,
         salePaymentMethod: closingForm.salePaymentMethod,
         customerEmail: closingForm.customerEmail.trim(),
         alternateContactNo: closingForm.alternateContactNo.trim(),
@@ -202,8 +243,15 @@ export function SalesTodaysWorkSection() {
         issues: closingForm.issues.trim(),
         plan: closingForm.plan.trim(),
         paymentMerchant: closingForm.paymentMerchant.trim(),
+        mainAmount: Number(closingForm.mainAmount || 0),
+        upgradedAmount: Number(closingForm.upgradedAmount || 0),
+        salesTaxType: closingForm.salesTaxType,
+        salesTaxValue: Number(closingForm.salesTaxValue || 0),
+        salesTaxAmount: Number(computed.salesTaxAmount || 0),
+        finalAmount,
       });
 
+      setLeads((cur) => sortLeads(cur.map((l) => (l._id === closingLead._id ? { ...l, ...updatedLead } : l))));
       toast.success('🎉 Sale successfully closed! Customer Unique ID generated & deal added to My Sales.');
       setClosingLead(null);
       await fetchLeads();
@@ -637,11 +685,27 @@ export function SalesTodaysWorkSection() {
             {/* Customer Summary Card */}
             <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-4 space-y-2">
               <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Customer Overview</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <div>
-                  <span className="text-slate-500 block">Name:</span>
-                  <span className="font-bold text-white">{closingLead.name}</span>
-                </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+                <label className="block">
+                  <span className="text-slate-500 block">Customer Name:</span>
+                  <input
+                    value={closingForm.customerName}
+                    onChange={(e) => setClosingForm((f) => ({ ...f, customerName: e.target.value }))}
+                    className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-white outline-none focus:border-emerald-500"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-slate-500 block">Customer Type:</span>
+                  <select
+                    value={closingForm.customerType}
+                    onChange={(e) => setClosingForm((f) => ({ ...f, customerType: e.target.value as CloseSaleFormState['customerType'] }))}
+                    className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-white outline-none focus:border-emerald-500"
+                  >
+                    <option value="NEW">New</option>
+                    <option value="EXISTING_CUSTOMER">Existing Customer</option>
+                    <option value="UPGRADE">Upgrade</option>
+                  </select>
+                </label>
                 <div>
                   <span className="text-slate-500 block">Primary Contact:</span>
                   <span className="font-semibold text-emerald-400">{closingLead.contactNo}</span>
@@ -666,6 +730,101 @@ export function SalesTodaysWorkSection() {
             {/* Closing Form */}
             <form onSubmit={handleConfirmCloseSale} className="space-y-4">
               <div className="grid gap-3.5 sm:grid-cols-2">
+                <label className="block space-y-1 text-xs text-slate-300">
+                  <span className="flex items-center gap-1.5 text-slate-400 font-semibold"><DollarSign className="h-3.5 w-3.5 text-emerald-400" /> Main Amount</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={closingForm.mainAmount}
+                    onChange={(e) => {
+                      const next = { ...closingForm, mainAmount: e.target.value };
+                      const calc = recalculateFinalAmount(next);
+                      setClosingForm({ ...next, salesTaxAmount: String(calc.salesTaxAmount), finalAmount: String(calc.finalAmount) });
+                    }}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-emerald-500"
+                  />
+                </label>
+                <label className="block space-y-1 text-xs text-slate-300">
+                  <span className="flex items-center gap-1.5 text-slate-400 font-semibold"><DollarSign className="h-3.5 w-3.5 text-emerald-400" /> Upgraded Amount</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={closingForm.upgradedAmount}
+                    onChange={(e) => {
+                      const next = { ...closingForm, upgradedAmount: e.target.value };
+                      const calc = recalculateFinalAmount(next);
+                      setClosingForm({ ...next, salesTaxAmount: String(calc.salesTaxAmount), finalAmount: String(calc.finalAmount) });
+                    }}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-emerald-500"
+                  />
+                </label>
+
+                <div className="space-y-2 sm:col-span-2">
+                  <p className="text-xs font-semibold text-slate-400">Sales Tax Type</p>
+                  <div className="flex gap-3">
+                    <label className="inline-flex items-center gap-2 text-xs text-slate-300">
+                      <input
+                        type="radio"
+                        checked={closingForm.salesTaxType === 'PERCENTAGE'}
+                        onChange={() => setClosingForm((f) => ({ ...f, salesTaxType: 'PERCENTAGE' }))}
+                      />
+                      Percentage %
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-xs text-slate-300">
+                      <input
+                        type="radio"
+                        checked={closingForm.salesTaxType === 'DIRECT_AMOUNT'}
+                        onChange={() => setClosingForm((f) => ({ ...f, salesTaxType: 'DIRECT_AMOUNT', salesTaxAmount: '0' }))}
+                      />
+                      Direct Amount
+                    </label>
+                  </div>
+                </div>
+
+                {closingForm.salesTaxType === 'PERCENTAGE' ? (
+                  <label className="block space-y-1 text-xs text-slate-300">
+                    <span className="flex items-center gap-1.5 text-slate-400 font-semibold"><Percent className="h-3.5 w-3.5 text-emerald-400" /> Sales Tax %</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={closingForm.salesTaxValue}
+                      onChange={(e) => {
+                        const next = { ...closingForm, salesTaxValue: e.target.value };
+                        const calc = recalculateFinalAmount(next);
+                        setClosingForm({ ...next, salesTaxAmount: String(calc.salesTaxAmount), finalAmount: String(calc.finalAmount) });
+                      }}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-emerald-500"
+                    />
+                  </label>
+                ) : (
+                  <label className="block space-y-1 text-xs text-slate-300">
+                    <span className="flex items-center gap-1.5 text-slate-400 font-semibold"><DollarSign className="h-3.5 w-3.5 text-emerald-400" /> Sales Tax Amount</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={closingForm.salesTaxAmount}
+                      onChange={(e) => {
+                        const next = { ...closingForm, salesTaxAmount: e.target.value };
+                        const calc = recalculateFinalAmount(next);
+                        setClosingForm({ ...next, finalAmount: String(calc.finalAmount) });
+                      }}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-emerald-500"
+                    />
+                  </label>
+                )}
+
+                <label className="block space-y-1 text-xs text-slate-300">
+                  <span className="flex items-center gap-1.5 text-slate-400 font-semibold"><DollarSign className="h-3.5 w-3.5 text-emerald-400" /> Final Amount</span>
+                  <input
+                    readOnly
+                    value={closingForm.finalAmount}
+                    className="w-full rounded-lg border border-emerald-500/50 bg-slate-950 px-3 py-2 text-xs font-bold text-emerald-300 outline-none"
+                  />
+                </label>
 
                 {/* Email Address */}
                 <label className="block space-y-1 text-xs text-slate-300">
@@ -786,23 +945,6 @@ export function SalesTodaysWorkSection() {
                       <option key={m} value={m}>{m}</option>
                     ))}
                   </select>
-                </label>
-
-                {/* Final Sale Amount */}
-                <label className="block space-y-1 text-xs text-slate-300">
-                  <span className="flex items-center gap-1.5 text-slate-400 font-semibold">
-                    <DollarSign className="h-3.5 w-3.5 text-emerald-400" /> Final Sale Amount ($)
-                  </span>
-                  <input
-                    type="number"
-                    min="1"
-                    step="0.01"
-                    required
-                    placeholder="e.g. 250.00"
-                    value={closingForm.saleAmount}
-                    onChange={(e) => setClosingForm((f) => ({ ...f, saleAmount: e.target.value }))}
-                    className="w-full rounded-lg border border-emerald-500/50 bg-slate-950 px-3 py-2 text-xs font-bold text-emerald-300 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                  />
                 </label>
 
               </div>

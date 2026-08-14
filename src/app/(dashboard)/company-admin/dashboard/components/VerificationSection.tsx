@@ -15,6 +15,18 @@ export function VerificationSection() {
   const [successModalId, setSuccessModalId] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Partial<ICompanySale> & { saleDate: string; paymentMethod: ICompanySale['paymentMethod']; customerType: ICompanySale['customerType']; }>({
+    name: '',
+    country: '',
+    system: '',
+    connectedBy: '',
+    amount: 0,
+    paymentMethod: 'Card',
+    saleDate: new Date().toISOString().slice(0, 10),
+    customerType: 'NEW',
+  });
 
   const fetchRecords = async () => {
     try {
@@ -40,6 +52,103 @@ export function VerificationSection() {
       socket.disconnect();
     };
   }, []);
+
+  const resetDraft = () => {
+    setDraft({
+      name: '',
+      country: '',
+      system: '',
+      connectedBy: '',
+      amount: 0,
+      paymentMethod: 'Card',
+      saleDate: new Date().toISOString().slice(0, 10),
+      customerType: 'NEW',
+    });
+    setEditingId(null);
+  };
+
+  const handleCreateOrUpdate = async () => {
+    try {
+      if (!draft.name || !draft.country || !draft.system || !draft.connectedBy || !draft.saleDate) {
+        toast.error('Name, country, system, sales employee, and sale date are required.');
+        return;
+      }
+      if (draft.amount === undefined || Number(draft.amount) <= 0) {
+        toast.error('Verification amount must be greater than zero.');
+        return;
+      }
+
+      if (editingId) {
+        await companyService.updateVerification(editingId, {
+          ...draft,
+          amount: Number(draft.amount),
+          mainAmount: Number(draft.mainAmount ?? draft.amount),
+          finalAmount: Number(draft.finalAmount ?? draft.amount),
+        });
+        toast.success('Verification updated.');
+      } else {
+        await companyService.createVerification({
+          name: draft.name || '',
+          country: draft.country || '',
+          system: draft.system || '',
+          connectedBy: draft.connectedBy || '',
+          amount: Number(draft.amount || 0),
+          mainAmount: Number(draft.mainAmount ?? draft.amount ?? 0),
+          finalAmount: Number(draft.finalAmount ?? draft.amount ?? 0),
+          paymentMethod: draft.paymentMethod || 'Card',
+          customerType: draft.customerType || 'NEW',
+          saleDate: draft.saleDate || new Date().toISOString().slice(0, 10),
+          customerEmail: draft.customerEmail,
+          alternateContactNo: draft.alternateContactNo,
+          customerAddress: draft.customerAddress,
+          plan: draft.plan,
+          paymentMerchant: draft.paymentMerchant,
+          issues: draft.issues,
+        });
+        toast.success('Verification created.');
+      }
+
+      setShowCreateModal(false);
+      resetDraft();
+      await fetchRecords();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Unable to save verification record');
+    }
+  };
+
+  const handleEdit = (rec: ICompanySale) => {
+    setEditingId(rec._id);
+    setDraft({
+      name: rec.name,
+      country: rec.country,
+      system: rec.system,
+      connectedBy: rec.connectedBy,
+      amount: rec.amount,
+      mainAmount: rec.mainAmount ?? rec.amount,
+      finalAmount: rec.finalAmount ?? rec.amount,
+      paymentMethod: rec.paymentMethod,
+      saleDate: rec.saleDate,
+      customerType: rec.customerType || 'NEW',
+      customerEmail: rec.customerEmail,
+      alternateContactNo: rec.alternateContactNo,
+      customerAddress: rec.customerAddress,
+      plan: rec.plan,
+      paymentMerchant: rec.paymentMerchant,
+      issues: rec.issues,
+    });
+    setShowCreateModal(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Delete this verification record?')) return;
+    try {
+      await companyService.deleteVerification(id);
+      toast.success('Verification record deleted.');
+      await fetchRecords();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Unable to delete verification record');
+    }
+  };
 
   const handleStart = async (id: string) => {
     try {
@@ -118,6 +227,12 @@ export function VerificationSection() {
             Verify sales details, contact customers, and approve sales verification.
           </p>
         </div>
+        <button
+          onClick={() => { resetDraft(); setShowCreateModal(true); }}
+          className="rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
+        >
+          + Create Verification
+        </button>
       </header>
 
       {/* Metrics Cards */}
@@ -245,8 +360,22 @@ export function VerificationSection() {
                     )}
                   </td>
                   <td className="p-3.5 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => handleEdit(rec)}
+                        className="rounded-lg bg-slate-700 px-2.5 py-1.5 text-[10px] font-semibold text-slate-200 hover:bg-slate-600"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => void handleDelete(rec._id)}
+                        className="rounded-lg bg-rose-700 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-rose-600"
+                      >
+                        Delete
+                      </button>
+                    </div>
                     {rec.verificationStatus === 'PENDING' && (
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-end gap-2 mt-2">
                         <button
                           onClick={() => void handleStart(rec._id)}
                           className="flex items-center gap-1 rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-500 transition-colors shadow"
@@ -293,6 +422,31 @@ export function VerificationSection() {
           </tbody>
         </table>
       </div>
+
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl space-y-4">
+            <h3 className="text-lg font-bold text-white">{editingId ? 'Edit Verification Record' : 'Create Verification Record'}</h3>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-xs text-slate-400">Customer Name<input value={draft.name || ''} onChange={(e) => setDraft((f) => ({ ...f, name: e.target.value }))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-emerald-500" /></label>
+              <label className="text-xs text-slate-400">Country<input value={draft.country || ''} onChange={(e) => setDraft((f) => ({ ...f, country: e.target.value }))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-emerald-500" /></label>
+              <label className="text-xs text-slate-400">System<input value={draft.system || ''} onChange={(e) => setDraft((f) => ({ ...f, system: e.target.value }))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-emerald-500" /></label>
+              <label className="text-xs text-slate-400">Sales Employee<input value={draft.connectedBy || ''} onChange={(e) => setDraft((f) => ({ ...f, connectedBy: e.target.value }))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-emerald-500" /></label>
+              <label className="text-xs text-slate-400">Amount<input type="number" min="0" step="0.01" value={draft.amount ?? 0} onChange={(e) => setDraft((f) => ({ ...f, amount: Number(e.target.value), mainAmount: Number(f.mainAmount ?? e.target.value), finalAmount: Number(f.finalAmount ?? e.target.value) }))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-emerald-500" /></label>
+              <label className="text-xs text-slate-400">Customer Type<select value={draft.customerType || 'NEW'} onChange={(e) => setDraft((f) => ({ ...f, customerType: e.target.value as ICompanySale['customerType'] }))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-emerald-500"><option value="NEW">New</option><option value="EXISTING_CUSTOMER">Existing Customer</option><option value="UPGRADE">Upgrade</option></select></label>
+              <label className="text-xs text-slate-400">Payment Method<select value={draft.paymentMethod || 'Card'} onChange={(e) => setDraft((f) => ({ ...f, paymentMethod: e.target.value as ICompanySale['paymentMethod'] }))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-emerald-500"><option value="Card">Card</option><option value="Check">Check</option><option value="Wire Transfer">Wire Transfer</option><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Bank Transfer">Bank Transfer</option><option value="Online">Online</option><option value="Other">Other</option></select></label>
+              <label className="text-xs text-slate-400">Sale Date<input type="date" value={draft.saleDate || new Date().toISOString().slice(0, 10)} onChange={(e) => setDraft((f) => ({ ...f, saleDate: e.target.value }))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-emerald-500" /></label>
+              <label className="text-xs text-slate-400 sm:col-span-2">Customer Email<input value={draft.customerEmail || ''} onChange={(e) => setDraft((f) => ({ ...f, customerEmail: e.target.value }))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-emerald-500" /></label>
+              <label className="text-xs text-slate-400">Alt Mobile<input value={draft.alternateContactNo || ''} onChange={(e) => setDraft((f) => ({ ...f, alternateContactNo: e.target.value }))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-emerald-500" /></label>
+              <label className="text-xs text-slate-400">Plan<input value={draft.plan || ''} onChange={(e) => setDraft((f) => ({ ...f, plan: e.target.value }))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-emerald-500" /></label>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => { setShowCreateModal(false); resetDraft(); }} className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300">Cancel</button>
+              <button onClick={() => void handleCreateOrUpdate()} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500">{editingId ? 'Save Changes' : 'Create Record'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Success Modal */}
       {successModalId && (

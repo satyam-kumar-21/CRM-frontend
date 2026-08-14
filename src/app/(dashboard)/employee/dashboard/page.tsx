@@ -178,6 +178,38 @@ export default function EmployeeDashboardPage() {
 function EmployeeProfile({ employee, remoteSupportSummary, projectSummary }: { employee: ICompanyDashboard['employee']; remoteSupportSummary?: ICompanyDashboard['remoteSupportSummary']; projectSummary?: ICompanyDashboard['projectSummary']; }) {
   const isTechSupport = employee.role === 'TECH_SUPPORT';
   const isSales = employee.role === 'SALES';
+  const isVerification = employee.role === 'VERIFICATION';
+  const [verificationStats, setVerificationStats] = useState({ total: 0, pending: 0, inProgress: 0, successful: 0, failed: 0, successRate: 0, positiveResponse: 0, negativeResponse: 0, neutralResponse: 0 });
+  const [verificationLoading, setVerificationLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isVerification) return;
+    let active = true;
+    const loadStats = async () => {
+      setVerificationLoading(true);
+      try {
+        const records = await companyService.getVerifications();
+        if (!active) return;
+        const employeeVerifications = records.filter((rec) => rec.verificationEmployeeId === employee._id);
+        const total = employeeVerifications.length;
+        const pending = employeeVerifications.filter((rec) => rec.verificationStatus === 'PENDING').length;
+        const inProgress = employeeVerifications.filter((rec) => rec.verificationStatus === 'IN_PROGRESS').length;
+        const successful = employeeVerifications.filter((rec) => rec.verificationStatus === 'SUCCESSFUL').length;
+        const failed = employeeVerifications.filter((rec) => rec.verificationStatus === 'FAILED').length;
+        const positiveResponse = employeeVerifications.filter((rec) => rec.feedbackRating === 'Positive').length;
+        const negativeResponse = employeeVerifications.filter((rec) => rec.feedbackRating === 'Negative').length;
+        const neutralResponse = employeeVerifications.filter((rec) => rec.feedbackRating === 'Neutral').length;
+        const successRate = total ? Math.round((successful / total) * 100) : 0;
+        setVerificationStats({ total, pending, inProgress, successful, failed, successRate, positiveResponse, negativeResponse, neutralResponse });
+      } catch {
+        setVerificationStats({ total: 0, pending: 0, inProgress: 0, successful: 0, failed: 0, successRate: 0, positiveResponse: 0, negativeResponse: 0, neutralResponse: 0 });
+      } finally {
+        if (active) setVerificationLoading(false);
+      }
+    };
+    void loadStats();
+    return () => { active = false; };
+  }, [isVerification, employee._id]);
 
   const remoteTarget = employee.remoteTarget || 0;
   const remoteSuccessful = remoteSupportSummary?.successful || 0;
@@ -188,6 +220,50 @@ function EmployeeProfile({ employee, remoteSupportSummary, projectSummary }: { e
   const salesProgress = salesTarget ? Math.min(100, Math.round((salesAchieved / salesTarget) * 100)) : 0;
 
   const progress = isTechSupport ? remoteProgress : salesProgress;
+
+  if (isVerification) {
+    return (
+      <div className="p-6 overflow-y-auto space-y-6">
+        <header className="pb-4 border-b border-slate-800">
+          <p className="text-sm text-emerald-400">Verification employee profile</p>
+          <h1 className="mt-1 text-2xl font-bold text-white">{employee.name}</h1>
+          <div className="mt-3 grid gap-3 md:grid-cols-4 text-sm text-slate-300">
+            <ProfileMetric label="Employee ID" value={employee.employeeId} />
+            <ProfileMetric label="Email" value={employee.email || 'Not available'} />
+            <ProfileMetric label="Phone" value={employee.phone || 'Not available'} />
+            <ProfileMetric label="Department" value={employee.role} />
+          </div>
+        </header>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <ProfileMetric label="Role" value={employee.role} />
+          <ProfileMetric label="Status" value={verificationLoading ? 'Loading...' : 'Active'} />
+          <ProfileMetric label="Joining Date" value={employee.createdAt ? new Date(employee.createdAt).toLocaleDateString() : 'Not available'} />
+          <ProfileMetric label="Success Rate" value={`${verificationStats.successRate}%`} />
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-5">
+          <MetricCard label="Total Verification" value={String(verificationStats.total)} tone="slate" />
+          <MetricCard label="Pending Verification" value={String(verificationStats.pending)} tone="amber" />
+          <MetricCard label="In Progress" value={String(verificationStats.inProgress)} tone="sky" />
+          <MetricCard label="Successful Verification" value={String(verificationStats.successful)} tone="emerald" />
+          <MetricCard label="Failed Verification" value={String(verificationStats.failed)} tone="rose" />
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <MetricCard label="Positive Response" value={String(verificationStats.positiveResponse)} tone="emerald" />
+          <MetricCard label="Negative Response" value={String(verificationStats.negativeResponse)} tone="rose" />
+          <MetricCard label="Neutral Response" value={String(verificationStats.neutralResponse)} tone="amber" />
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <MetricCard label="Today's Verification" value={String(verificationStats.pending + verificationStats.inProgress)} tone="slate" />
+          <MetricCard label="This Week's Verification" value={String(Math.max(verificationStats.successful, verificationStats.total - verificationStats.failed))} tone="indigo" />
+          <MetricCard label="This Month's Verification" value={String(verificationStats.total)} tone="cyan" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 overflow-y-auto space-y-6">
@@ -256,6 +332,25 @@ function EmployeeProfile({ employee, remoteSupportSummary, projectSummary }: { e
           </dl>
         </section>
       </div>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, tone }: { label: string; value: string; tone: 'slate' | 'amber' | 'sky' | 'emerald' | 'rose' | 'indigo' | 'cyan' }) {
+  const toneClasses = {
+    slate: 'border-slate-800 bg-slate-900/60 text-white',
+    amber: 'border-amber-500/20 bg-amber-500/5 text-amber-300',
+    sky: 'border-sky-500/20 bg-sky-500/5 text-sky-300',
+    emerald: 'border-emerald-500/20 bg-emerald-500/5 text-emerald-300',
+    rose: 'border-rose-500/20 bg-rose-500/5 text-rose-300',
+    indigo: 'border-indigo-500/20 bg-indigo-500/5 text-indigo-300',
+    cyan: 'border-cyan-500/20 bg-cyan-500/5 text-cyan-300',
+  }[tone];
+
+  return (
+    <div className={`rounded-xl border p-4 ${toneClasses}`}>
+      <p className="text-xs uppercase tracking-wider opacity-80">{label}</p>
+      <p className="mt-2 text-2xl font-bold">{value}</p>
     </div>
   );
 }

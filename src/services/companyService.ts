@@ -100,11 +100,18 @@ export interface ICompanyDashboard {
         failed: number;
         total: number;
       };
+      verifications?: {
+        pending: number;
+        successful: number;
+        failed: number;
+        total: number;
+      };
       lists: {
         leads: Array<{ _id: string; name: string; country: string; system: string; createdAt: string }>;
         sales: Array<{ _id: string; name: string; amount: number; connectedBy: string; saleDate: string; failed?: boolean }>;
         failed: Array<{ _id: string; name: string; amount: number; connectedBy: string; saleDate: string; failed?: boolean }>;
         remote: Array<{ _id: string; customerName: string; salesEmployeeName: string; techSupportEmployeeName?: string; status: string; dateTime: string }>;
+        verifications?: Array<{ _id: string; name: string; amount: number; verificationEmployeeName?: string; verificationStatus?: string; feedbackRating?: string }>;
       };
     };
     topSalesEmployees?: Array<{ name: string; totalAmount: number; saleCount: number }>;
@@ -228,11 +235,18 @@ export interface ICompanyLead {
   issues?: string;
   plan?: string;
   paymentMerchant?: string;
+  mainAmount?: number;
+  upgradedAmount?: number;
+  salesTaxType?: 'PERCENTAGE' | 'DIRECT_AMOUNT';
+  salesTaxValue?: number;
+  salesTaxAmount?: number;
+  finalAmount?: number;
   connected: 'yes' | 'no';
   connectedBy: string;
   assignedTo?: string;
   assignedToName?: string;
   acceptedAt?: string;
+  customerType?: 'NEW' | 'EXISTING_CUSTOMER' | 'UPGRADE';
   isSale: 'yes' | 'no';
   saleAmount?: number;
   salePaymentMethod?: 'Card' | 'Check' | 'Wire Transfer' | 'Cash' | 'UPI' | 'Bank Transfer' | 'Online' | 'Other';
@@ -261,12 +275,19 @@ export interface ICompanySale {
   plan?: string;
   paymentMerchant?: string;
   connectedBy: string;
+  customerType?: 'NEW' | 'EXISTING_CUSTOMER' | 'UPGRADE';
   salesEmployeeId?: string;
   salesEmployeeName?: string;
   techSupportEmployeeId?: string;
   techSupportEmployeeName?: string;
   techSupportCompletedAt?: string;
   amount: number;
+  mainAmount?: number;
+  upgradedAmount?: number;
+  salesTaxType?: 'PERCENTAGE' | 'DIRECT_AMOUNT';
+  salesTaxValue?: number;
+  salesTaxAmount?: number;
+  finalAmount?: number;
   paymentMethod: 'Card' | 'Check' | 'Wire Transfer' | 'Cash' | 'UPI' | 'Bank Transfer' | 'Online' | 'Other';
   saleDate: string;
   businessDate?: string;
@@ -275,6 +296,8 @@ export interface ICompanySale {
   failedAt?: string | null;
   failedByName?: string;
   verificationStatus?: 'PENDING' | 'IN_PROGRESS' | 'SUCCESSFUL' | 'FAILED';
+  verificationEmployeeId?: string;
+  verificationEmployeeName?: string;
   verifiedBy?: string;
   verifiedByName?: string;
   verifiedAt?: string;
@@ -404,6 +427,9 @@ export const companyService = {
   getSales: async (): Promise<ICompanySale[]> => (await api.get('/company/sales', { params: { failed: false, t: Date.now() }, headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache', Expires: '0' } })).data.data,
   getFailedSales: async (): Promise<ICompanySale[]> => (await api.get('/company/sales', { params: { failed: true, t: Date.now() }, headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache', Expires: '0' } })).data.data,
   getVerifications: async (params: { status?: string } = {}): Promise<ICompanySale[]> => (await api.get('/company/verification', { params })).data.data,
+  createVerification: async (payload: Partial<ICompanySale> & { name: string; country: string; system: string; connectedBy: string; amount: number; paymentMethod: ICompanySale['paymentMethod']; }): Promise<ICompanySale> => (await api.post('/company/verification', payload)).data.data,
+  updateVerification: async (id: string, payload: Partial<ICompanySale>): Promise<ICompanySale> => (await api.patch(`/company/verification/${id}`, payload)).data.data,
+  deleteVerification: async (id: string): Promise<{ id: string }> => (await api.delete(`/company/verification/${id}`)).data.data,
   startVerification: async (id: string): Promise<ICompanySale> => (await api.post(`/company/verification/${id}/start`)).data.data,
   completeVerification: async (id: string, payload: { status: 'SUCCESSFUL' | 'FAILED'; notes?: string; failedReason?: string }): Promise<ICompanySale> => (await api.post(`/company/verification/${id}/complete`, payload)).data.data,
   getFeedbacks: async (params: { status?: string } = {}): Promise<ICompanySale[]> => (await api.get('/company/feedback', { params })).data.data,

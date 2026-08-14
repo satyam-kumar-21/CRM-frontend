@@ -7,8 +7,8 @@ import { companyService, ICompanyEmployee, ICompanyLead, ICompanySale } from '@/
 type LeadForm = Omit<ICompanyLead, '_id'>;
 type SaleForm = Omit<ICompanySale, '_id'>;
 
-const emptyLead: LeadForm = { name: '', country: '', system: '', contactNo: '', otherDetails: '', connected: 'no', connectedBy: 'Unassigned', isSale: 'no' };
-const emptySale: SaleForm = { name: '', country: '', system: '', connectedBy: '', amount: 0, paymentMethod: 'Card', saleDate: getBusinessDateString() };
+const emptyLead: LeadForm = { name: '', country: '', system: '', contactNo: '', otherDetails: '', connected: 'no', connectedBy: 'Unassigned', customerType: 'NEW', isSale: 'no' };
+const emptySale: SaleForm = { name: '', country: '', system: '', connectedBy: '', amount: 0, paymentMethod: 'Card', customerType: 'NEW', saleDate: getBusinessDateString() };
 const inputClass = 'w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20';
 const selectClass = `${inputClass} cursor-pointer appearance-none bg-[linear-gradient(45deg,transparent_50%,#94a3b8_50%),linear-gradient(135deg,#94a3b8_50%,transparent_50%)] bg-[position:calc(100%-14px)_50%,calc(100%-9px)_50%] bg-[size:5px_5px,5px_5px] bg-no-repeat pr-8`;
 type DateFilters = { employee: string; month: string; from: string; to: string; customer: string };
@@ -30,6 +30,7 @@ function LeadEditor({ initial, employees, onSave, onCancel }: { initial: LeadFor
     <Field label="Lead name" value={form.name} onChange={(value) => set('name', value)} /><Field label="Country" value={form.country} onChange={(value) => set('country', value)} /><Field label="System" value={form.system} onChange={(value) => set('system', value)} /><Field label="Contact" value={form.contactNo} onChange={(value) => set('contactNo', value)} />
     <Field label="Details" value={form.otherDetails} onChange={(value) => set('otherDetails', value)} /><EmployeeSelect label="Connected by" value={form.connectedBy} employees={employees} onChange={(value) => set('connectedBy', value)} />
     <label className="space-y-1 text-xs text-slate-400"><span>Connected</span><select className={selectClass} value={form.connected} onChange={(event) => set('connected', event.target.value)}><option value="yes">Yes</option><option value="no">No</option></select></label>
+    <label className="space-y-1 text-xs text-slate-400"><span>Customer type</span><select className={selectClass} value={form.customerType || 'NEW'} onChange={(event) => set('customerType', event.target.value)}><option value="NEW">New</option><option value="EXISTING_CUSTOMER">Existing Customer</option><option value="UPGRADE">Upgrade</option></select></label>
     <label className="space-y-1 text-xs text-slate-400"><span>Converted sale</span><select className={selectClass} value={form.isSale} onChange={(event) => set('isSale', event.target.value)}><option value="yes">Yes</option><option value="no">No</option></select></label>
     <div className="flex gap-2 md:col-span-4"><button className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white"><Check className="mr-1 inline h-3.5 w-3.5" />Save</button><button type="button" onClick={onCancel} className="rounded-lg bg-slate-700 px-3 py-2 text-xs text-white">Cancel</button></div>
   </form>;
@@ -75,6 +76,7 @@ function SaleEditor({ initial, leads, employees, onSave, onCancel }: { initial: 
     <Field label="Country" value={form.country} onChange={(value) => set('country', value)} />
     <Field label="System" value={form.system} onChange={(value) => set('system', value)} />
     <EmployeeSelect label="Closed by" value={form.connectedBy} employees={employees} onChange={(value) => set('connectedBy', value)} />
+    <label className="space-y-1 text-xs text-slate-400"><span>Customer type</span><select className={selectClass} value={form.customerType || 'NEW'} onChange={(event) => set('customerType', event.target.value)}><option value="NEW">New</option><option value="EXISTING_CUSTOMER">Existing Customer</option><option value="UPGRADE">Upgrade</option></select></label>
     <Field label="Plan / Package" value={form.plan || ''} onChange={(value) => set('plan', value)} />
     <Field label="Payment Merchant" value={form.paymentMerchant || ''} onChange={(value) => set('paymentMerchant', value)} />
     <Field label="Amount" type="number" value={form.amount} onChange={(value) => set('amount', value)} />
