@@ -100,6 +100,10 @@ export function SalesSection({ readOnly = false }: { readOnly?: boolean }) {
   const [monthFilter, setMonthFilter] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [customerSearchResults, setCustomerSearchResults] = useState<Array<any>>([]);
+  const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
+  const [upgradeDraft, setUpgradeDraft] = useState<any>(null);
   useEffect(() => {
     companyService.getSales().then(setSales).catch(() => toast.error('Unable to load sales'));
     companyService.getLeads().then(setLeads).catch(() => toast.error('Unable to load lead customers'));
@@ -112,7 +116,96 @@ export function SalesSection({ readOnly = false }: { readOnly?: boolean }) {
   const filteredSales = normalSales.filter((sale) => (!employeeFilter || sale.connectedBy === employeeFilter) && (!customerFilter || sale.name.toLowerCase().includes(customerFilter.toLowerCase()) || (sale.customerId && sale.customerId.includes(customerFilter))) && matchesBusinessDateFilters(sale.saleDate, { employee: employeeFilter, month: monthFilter, from: fromDate, to: toDate, customer: customerFilter }));
   const exportSales = () => downloadCsv('sales.csv', [['Customer ID', 'Customer', 'Email', 'Alt Phone', 'Address', 'Country', 'System', 'Plan', 'Merchant', 'Closed By', 'Payment', 'Date', 'Amount'], ...filteredSales.map((sale) => [sale.customerId || 'N/A', sale.name, sale.customerEmail || '', sale.alternateContactNo || '', sale.customerAddress || '', sale.country, sale.system, sale.plan || '', sale.paymentMerchant || '', sale.connectedBy, sale.paymentMethod, sale.saleDate, String(sale.amount)])]);
   const salesFilterBar = <DateFilterBar filters={{ employee: employeeFilter, month: monthFilter, from: fromDate, to: toDate, customer: customerFilter }} setFilters={(next) => { setEmployeeFilter(next.employee); setCustomerFilter(next.customer); setMonthFilter(next.month); setFromDate(next.from); setToDate(next.to); }} employees={employees} employeeLabel="Closed by" readOnly={readOnly} />;
-  return <div className="min-h-full space-y-6 overflow-y-auto bg-slate-950 p-6 text-slate-100"><header className="flex items-center justify-between border-b border-slate-800 pb-4"><div><h1 className="flex items-center gap-2 text-2xl font-bold text-white"><TrendingUp className="h-6 w-6 text-emerald-400" /> {readOnly ? 'My Sales' : 'Sales Revenue'}</h1><p className="text-sm text-slate-400">{readOnly ? 'Sales completed by you with full customer details.' : 'Manage company sales transactions and customer details.'}</p></div>{!readOnly && <button onClick={() => { setAdding(true); setEditing(null); }} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white"><Plus className="mr-1 inline h-4 w-4" />Add Sale</button>}</header><div className="grid gap-4 sm:grid-cols-3"><Metric icon={TrendingUp} label="Revenue" value={`$${revenue.toLocaleString()}`} color="text-emerald-400" /><Metric icon={CreditCard} label="Closed Deals" value={sales.length} color="text-indigo-400" /><Metric icon={Target} label="Average Deal" value={`$${sales.length ? Math.round(revenue / sales.length).toLocaleString() : 0}`} color="text-amber-400" /></div>{salesFilterBar}{(adding || editing) && <SaleEditor initial={editing ? (sales.find((sale) => sale._id === editing) as SaleForm) : emptySale} leads={leads} employees={employees} onSave={save} onCancel={() => { setAdding(false); setEditing(null); }} />}<div className="overflow-x-auto rounded-xl border border-slate-800"><table className="w-full text-left text-xs text-slate-300"><thead className="bg-slate-900 text-slate-400"><tr><th className="p-3">Customer & ID</th><th className="p-3">Contact & Address</th><th className="p-3">System & Plan</th><th className="p-3">Closed by</th><th className="p-3">Merchant & Mode</th><th className="p-3">Date</th><th className="p-3 text-right">Amount / Actions</th></tr></thead><tbody className="divide-y divide-slate-800">{filteredSales.map((sale) => <tr key={sale._id} className="hover:bg-slate-900/40 transition-colors"><td className="p-3"><div className="flex items-center gap-1.5"><b className="text-white text-sm">{sale.name}</b>{sale.customerId && <span className="rounded bg-indigo-500/20 px-1.5 py-0.5 text-[10px] font-mono font-bold text-indigo-300 border border-indigo-500/30">#{sale.customerId}</span>}</div><span className="block text-slate-400 text-[11px]">{sale.country}</span></td><td className="p-3 text-[11px]"><div className="text-slate-300">{sale.customerEmail || '—'}</div>{sale.alternateContactNo && <div className="text-emerald-400">Alt: {sale.alternateContactNo}</div>}{sale.customerAddress && <div className="text-slate-500 truncate max-w-xs">{sale.customerAddress}</div>}</td><td className="p-3"><div className="font-semibold text-slate-200"><Building2 className="mr-1 inline h-3.5 w-3.5 text-slate-400" />{sale.system}</div>{sale.plan && <div className="text-[11px] text-cyan-400">{sale.plan}</div>}{sale.issues && <div className="text-[10px] text-slate-500 truncate max-w-[180px]" title={sale.issues}>Issue: {sale.issues}</div>}</td><td className="p-3">{sale.connectedBy}</td><td className="p-3"><div><span className="font-medium text-slate-200">{sale.paymentMethod}</span></div>{sale.paymentMerchant && <span className="text-[10px] text-slate-400 block font-mono">Via: {sale.paymentMerchant}</span>}</td><td className="p-3 text-slate-400">{sale.saleDate}</td><td className="p-3 text-right"><span className="mr-3 font-mono font-bold text-emerald-400 text-sm">${sale.amount.toLocaleString()}</span>{!readOnly && <><button title="Edit sale" onClick={() => { setEditing(sale._id); setAdding(false); }} className="mr-2 text-indigo-400"><Pencil className="inline h-4 w-4" /></button><button title="Delete sale" onClick={() => void remove(sale._id)} className="text-rose-400"><Trash2 className="inline h-4 w-4" /></button></>}</td></tr>)}</tbody></table></div></div>;
+
+  const calculateUpgradeTotals = (draft: any) => {
+    const amount = Number(draft.upgradeAmount || 0);
+    if (draft.salesTaxType === 'PERCENTAGE') {
+      const taxValue = Number(draft.salesTaxValue || 0);
+      const taxAmount = (amount * taxValue) / 100;
+      return { salesTaxAmount: taxAmount, finalAmount: amount + taxAmount };
+    }
+    const taxAmount = Number(draft.salesTaxAmount || 0);
+    return { salesTaxAmount: taxAmount, finalAmount: amount + taxAmount };
+  };
+
+  const handleCustomerSearch = async () => {
+    if (!customerSearchTerm.trim()) return;
+    setCustomerSearchLoading(true);
+    try {
+      const results = await companyService.searchCustomers(customerSearchTerm.trim());
+      setCustomerSearchResults(results || []);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Unable to search customers');
+      setCustomerSearchResults([]);
+    } finally {
+      setCustomerSearchLoading(false);
+    }
+  };
+
+  const openUpgradeModal = (customer: any) => {
+    const draft = {
+      customerId: customer.customerId || customer._id || '',
+      customerName: customer.name || '',
+      customerEmail: customer.customerEmail || '',
+      mobile: customer.mobile || customer.alternateContactNo || customer.contactNo || '',
+      country: customer.country || '',
+      system: customer.system || '',
+      existingService: customer.plan || customer.system || 'Existing service',
+      upgradeAmount: '',
+      salesTaxType: 'PERCENTAGE',
+      salesTaxValue: '10',
+      salesTaxAmount: '0',
+      finalAmount: '',
+      paymentMethod: 'Card',
+      salesEmployeeRemark: '',
+    };
+    const totals = calculateUpgradeTotals(draft);
+    setUpgradeDraft({ ...draft, salesTaxAmount: String(totals.salesTaxAmount), finalAmount: String(totals.finalAmount) });
+  };
+
+  const handleUpgradeFieldChange = (key: string, value: string) => {
+    setUpgradeDraft((current: any) => {
+      if (!current) return current;
+      const next = { ...current, [key]: value };
+      const totals = calculateUpgradeTotals(next);
+      return { ...next, salesTaxAmount: String(totals.salesTaxAmount), finalAmount: String(totals.finalAmount) };
+    });
+  };
+
+  const submitUpgrade = async () => {
+    if (!upgradeDraft) return;
+    const amount = Number(upgradeDraft.upgradeAmount || 0);
+    if (!amount || amount <= 0) {
+      toast.error('Please enter a valid Upgrade Amount.');
+      return;
+    }
+
+    try {
+      const created = await companyService.createUpgrade({
+        customerId: upgradeDraft.customerId,
+        customerName: upgradeDraft.customerName,
+        customerEmail: upgradeDraft.customerEmail,
+        mobile: upgradeDraft.mobile,
+        country: upgradeDraft.country,
+        system: upgradeDraft.system,
+        paymentMethod: upgradeDraft.paymentMethod,
+        upgradeAmount: amount,
+        salesTaxType: upgradeDraft.salesTaxType,
+        salesTaxValue: Number(upgradeDraft.salesTaxValue || 0),
+        salesTaxAmount: Number(upgradeDraft.salesTaxAmount || 0),
+        finalAmount: Number(upgradeDraft.finalAmount || 0),
+        salesEmployeeRemark: upgradeDraft.salesEmployeeRemark,
+      });
+      toast.success(`Upgrade #${created.upgradeNumber || 1} created successfully`);
+      setUpgradeDraft(null);
+      setCustomerSearchTerm('');
+      setCustomerSearchResults([]);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Unable to create upgrade');
+    }
+  };
+
+  return <div className="min-h-full space-y-6 overflow-y-auto bg-slate-950 p-6 text-slate-100"><header className="flex items-center justify-between border-b border-slate-800 pb-4"><div><h1 className="flex items-center gap-2 text-2xl font-bold text-white"><TrendingUp className="h-6 w-6 text-emerald-400" /> {readOnly ? 'My Sales' : 'Sales Revenue'}</h1><p className="text-sm text-slate-400">{readOnly ? 'Sales completed by you with full customer details.' : 'Manage company sales transactions and customer details.'}</p></div>{!readOnly && <button onClick={() => { setAdding(true); setEditing(null); }} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white"><Plus className="mr-1 inline h-4 w-4" />Add Sale</button>}</header><div className="grid gap-4 sm:grid-cols-3"><Metric icon={TrendingUp} label="Revenue" value={`$${revenue.toLocaleString()}`} color="text-emerald-400" /><Metric icon={CreditCard} label="Closed Deals" value={sales.length} color="text-indigo-400" /><Metric icon={Target} label="Average Deal" value={`$${sales.length ? Math.round(revenue / sales.length).toLocaleString() : 0}`} color="text-amber-400" /></div>{!readOnly && <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-semibold text-white">Customer Search & Upgrade</p><p className="text-xs text-slate-400">Find existing customers by customer name, email, mobile, customer ID, lead ID or sale ID.</p></div><div className="flex w-full max-w-xl items-center gap-2"><input value={customerSearchTerm} onChange={(event) => setCustomerSearchTerm(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void handleCustomerSearch(); }} placeholder="Search by name, email, mobile, CUS..., lead or sale ID" className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500" /><button type="button" onClick={() => void handleCustomerSearch()} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white">Search</button></div></div>{customerSearchLoading && <div className="mt-4 text-xs text-slate-400">Searching customer records...</div>}{customerSearchResults.length > 0 && <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800"><table className="w-full text-left text-xs text-slate-300"><thead className="bg-slate-950 text-slate-400"><tr><th className="p-3">Customer</th><th className="p-3">Contact</th><th className="p-3">Country / System</th><th className="p-3">Sales Employee</th><th className="p-3 text-right">Action</th></tr></thead><tbody className="divide-y divide-slate-800">{customerSearchResults.map((customer) => <tr key={`${customer._id}-${customer.customerId || 'search'}`} className="hover:bg-slate-900/50"><td className="p-3"><div className="flex items-center gap-2"><span className="font-semibold text-white">{customer.name}</span>{customer.customerId && <span className="rounded bg-indigo-500/20 px-1.5 py-0.5 text-[10px] font-mono font-bold text-indigo-300">#{customer.customerId}</span>}</div></td><td className="p-3"><div>{customer.customerEmail || 'No email'}</div><div className="text-slate-400">{customer.alternateContactNo || customer.contactNo || 'No mobile'}</div></td><td className="p-3"><div>{customer.country || 'N/A'}</div><div className="text-slate-400">{customer.system || 'N/A'}</div></td><td className="p-3">{customer.salesEmployeeName || customer.connectedBy || '—'}</td><td className="p-3 text-right"><button type="button" onClick={() => openUpgradeModal(customer)} className="rounded-lg bg-emerald-600 px-3 py-2 text-[11px] font-semibold text-white">Upgrade Customer</button></td></tr>)}</tbody></table></div>}</div>}{salesFilterBar}{(adding || editing) && <SaleEditor initial={editing ? (sales.find((sale) => sale._id === editing) as SaleForm) : emptySale} leads={leads} employees={employees} onSave={save} onCancel={() => { setAdding(false); setEditing(null); }} />}<div className="overflow-x-auto rounded-xl border border-slate-800"><table className="w-full text-left text-xs text-slate-300"><thead className="bg-slate-900 text-slate-400"><tr><th className="p-3">Customer & ID</th><th className="p-3">Contact & Address</th><th className="p-3">System & Plan</th><th className="p-3">Closed by</th><th className="p-3">Merchant & Mode</th><th className="p-3">Date</th><th className="p-3 text-right">Amount / Actions</th></tr></thead><tbody className="divide-y divide-slate-800">{filteredSales.map((sale) => <tr key={sale._id} className="hover:bg-slate-900/40 transition-colors"><td className="p-3"><div className="flex items-center gap-1.5"><b className="text-white text-sm">{sale.name}</b>{sale.customerId && <span className="rounded bg-indigo-500/20 px-1.5 py-0.5 text-[10px] font-mono font-bold text-indigo-300 border border-indigo-500/30">#{sale.customerId}</span>}</div><span className="block text-slate-400 text-[11px]">{sale.country}</span></td><td className="p-3 text-[11px]"><div className="text-slate-300">{sale.customerEmail || '—'}</div>{sale.alternateContactNo && <div className="text-emerald-400">Alt: {sale.alternateContactNo}</div>}{sale.customerAddress && <div className="text-slate-500 truncate max-w-xs">{sale.customerAddress}</div>}</td><td className="p-3"><div className="font-semibold text-slate-200"><Building2 className="mr-1 inline h-3.5 w-3.5 text-slate-400" />{sale.system}</div>{sale.plan && <div className="text-[11px] text-cyan-400">{sale.plan}</div>}{sale.issues && <div className="text-[10px] text-slate-500 truncate max-w-[180px]" title={sale.issues}>Issue: {sale.issues}</div>}</td><td className="p-3">{sale.connectedBy}</td><td className="p-3"><div><span className="font-medium text-slate-200">{sale.paymentMethod}</span></div>{sale.paymentMerchant && <span className="text-[10px] text-slate-400 block font-mono">Via: {sale.paymentMerchant}</span>}</td><td className="p-3 text-slate-400">{sale.saleDate}</td><td className="p-3 text-right"><span className="mr-3 font-mono font-bold text-emerald-400 text-sm">${sale.amount.toLocaleString()}</span>{!readOnly && <><button title="Edit sale" onClick={() => { setEditing(sale._id); setAdding(false); }} className="mr-2 text-indigo-400"><Pencil className="inline h-4 w-4" /></button><button title="Delete sale" onClick={() => void remove(sale._id)} className="text-rose-400"><Trash2 className="inline h-4 w-4" /></button></>}</td></tr>)}</tbody></table></div></div>;
 }
 
 

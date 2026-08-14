@@ -316,6 +316,49 @@ export interface ICompanySale {
   feedbackByName?: string;
   feedbackAt?: string;
   feedbackBusinessDate?: string;
+  salesEmployeeRemark?: string;
+}
+
+export interface ICustomerSearchResult extends Partial<ICompanySale> {
+  _id: string;
+  customerId?: string;
+  name: string;
+  customerEmail?: string;
+  alternateContactNo?: string;
+  mobile?: string;
+  contactNo?: string;
+  country?: string;
+  system?: string;
+  salesEmployeeName?: string;
+  amount?: number;
+  finalAmount?: number;
+  saleDate?: string;
+  paymentMethod?: ICompanySale['paymentMethod'];
+  customerAddress?: string;
+}
+
+export interface IUpgradeRecord {
+  _id: string;
+  customerId?: string;
+  customerName: string;
+  customerEmail?: string;
+  mobile?: string;
+  country?: string;
+  system?: string;
+  salesEmployeeId?: string;
+  salesEmployeeName?: string;
+  upgradedBy?: string;
+  upgradedByName?: string;
+  upgradeNumber?: number;
+  upgradeAmount: number;
+  salesTaxType?: 'PERCENTAGE' | 'DIRECT_AMOUNT';
+  salesTaxValue?: number;
+  salesTaxAmount?: number;
+  finalAmount: number;
+  paymentMethod?: ICompanySale['paymentMethod'];
+  salesEmployeeRemark?: string;
+  status?: string;
+  createdAt?: string;
 }
 
 export interface IAttendanceRecord {
@@ -431,6 +474,9 @@ export const companyService = {
   deleteLead: async (id: string) => (await api.delete(`/company/leads/${id}`)).data.data,
   getSales: async (): Promise<ICompanySale[]> => (await api.get('/company/sales', { params: { failed: false, t: Date.now() }, headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache', Expires: '0' } })).data.data,
   getFailedSales: async (): Promise<ICompanySale[]> => (await api.get('/company/sales', { params: { failed: true, t: Date.now() }, headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache', Expires: '0' } })).data.data,
+  searchCustomers: async (query: string): Promise<ICustomerSearchResult[]> => (await api.get('/company/sales/customers/search', { params: { q: query } })).data.data,
+  createUpgrade: async (payload: Partial<ICustomerSearchResult> & { customerId?: string; customerName?: string; customerEmail?: string; mobile?: string; country?: string; system?: string; upgradeAmount?: number; salesTaxType?: 'PERCENTAGE' | 'DIRECT_AMOUNT'; salesTaxValue?: number; salesTaxAmount?: number; finalAmount?: number; paymentMethod?: ICompanySale['paymentMethod']; salesEmployeeRemark?: string; }): Promise<IUpgradeRecord> => (await api.post('/company/sales/upgrades', payload)).data.data,
+  getUpgrades: async (params: { customerId?: string; q?: string; status?: string } = {}): Promise<IUpgradeRecord[]> => (await api.get('/company/sales/upgrades', { params })).data.data,
   getVerifications: async (params: { status?: string } = {}): Promise<ICompanySale[]> => (await api.get('/company/verification', { params })).data.data,
   createVerification: async (payload: Partial<ICompanySale> & { name: string; country: string; system: string; connectedBy: string; amount: number; paymentMethod: ICompanySale['paymentMethod']; }): Promise<ICompanySale> => (await api.post('/company/verification', payload)).data.data,
   updateVerification: async (id: string, payload: Partial<ICompanySale>): Promise<ICompanySale> => (await api.patch(`/company/verification/${id}`, payload)).data.data,

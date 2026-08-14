@@ -20,6 +20,7 @@ import { EmployeesSection } from './components/EmployeesSection';
 import { GroupsSection } from './components/GroupsSection';
 import { LeadsSection, SalesSection } from './components/SalesLeadsSections';
 import { AdminSalesSection } from './components/AdminSalesSection';
+import { UpgradeSection } from './components/UpgradeSection';
 import { FailedSalesSection } from './components/FailedSalesSection';
 import { OverviewSection } from './components/OverviewSection';
 import { RemoteSupportSection } from './components/RemoteSupportSection';
@@ -104,6 +105,7 @@ export default function CompanyAdminDashboardPage() {
     { id: 'groups', label: 'Channels & Groups', icon: Hash, count: groupsList.length },
     { id: 'leads', label: 'Leads', icon: UserPlus },
     { id: 'sales', label: 'Sales', icon: TrendingUp },
+    { id: 'upgrade', label: 'Upgrade', icon: TrendingUp },
     { id: 'failed-sales', label: 'Failed Sales', icon: Flag },
     { id: 'remote-support', label: 'Remote Support', icon: UserPlus },
     { id: 'verification', label: 'Verification', icon: Flag },
@@ -261,6 +263,7 @@ export default function CompanyAdminDashboardPage() {
     {activeSection === 'todays-report' && <TodaysReportSection report={dashboard?.stats?.todayReport} />}
     {activeSection === 'employees' && <EmployeesSection employees={employeesList} filteredEmployees={filteredEmployees} searchQuery={searchQuery} setSearchQuery={setSearchQuery} employeeRoleFilter={employeeRoleFilter} setEmployeeRoleFilter={setEmployeeRoleFilter} onSelectEmployee={setSelectedEmployeeForDetails} onAddEmployee={handleOpenNewEmployeeModal} onEditEmployee={handleEditEmployee} onToggleBlock={handleToggleEmployeeBlock} onDeleteEmployee={handleDeleteEmployee} />}
     {activeSection === 'sales' && <AdminSalesSection />}
+    {activeSection === 'upgrade' && <UpgradeSection />}
     {activeSection === 'failed-sales' && <FailedSalesSection />}
     {activeSection === 'remote-support' && <RemoteSupportSection role={dashboard?.employee?.role} isAdmin />}
     {activeSection === 'verification' && <VerificationSection />}

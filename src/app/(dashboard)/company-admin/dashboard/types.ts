@@ -1,4 +1,4 @@
-export type NavSection = 'overview' | 'chat' | 'employees' | 'groups' | 'sales' | 'failed-sales' | 'leads' | 'attendance' | 'salary' | 'leave' | 'announcements' | 'projects' | 'remote-support' | 'verification' | 'feedback' | 'todays-report' | 'billing' | 'settings' | 'profile';
+export type NavSection = 'overview' | 'chat' | 'employees' | 'groups' | 'sales' | 'upgrade' | 'failed-sales' | 'leads' | 'attendance' | 'salary' | 'leave' | 'announcements' | 'projects' | 'remote-support' | 'verification' | 'feedback' | 'todays-report' | 'billing' | 'settings' | 'profile';
 export type TimeframeFilter = 'today' | 'month' | 'year' | 'all';
 export type ChatFilter = 'all' | 'groups' | 'employees';
 

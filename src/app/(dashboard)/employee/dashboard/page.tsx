@@ -23,6 +23,7 @@ import { TechSupportTodaysWorkSection } from '../../company-admin/dashboard/comp
 import { VerificationTodaysWorkSection } from '../../company-admin/dashboard/components/VerificationTodaysWorkSection';
 import { VerificationSection } from '../../company-admin/dashboard/components/VerificationSection';
 import { FeedbackSection } from '../../company-admin/dashboard/components/FeedbackSection';
+import { UpgradeSection } from '../../company-admin/dashboard/components/UpgradeSection';
 import { useCompanySettings, useCompanyValidation, type CompanySettingsResponse } from '@/lib/useCompanySettings';
 import { applyTheme, THEME_OPTIONS, type ThemeName, getStoredTheme } from '@/lib/theme';
 import type { ChatFilter, IEmployee, IGroupChannel, NavSection } from '../../company-admin/dashboard/types';
@@ -70,6 +71,7 @@ export default function EmployeeDashboardPage() {
         { id: 'todays-report' as NavSection, label: "Today's Work", icon: CalendarCheck },
         { id: 'leads' as NavSection, label: 'My Leads', icon: UserPlus },
         { id: 'sales' as NavSection, label: 'My Sales', icon: TrendingUp },
+        { id: 'upgrade' as NavSection, label: 'Upgrade', icon: TrendingUp },
         { id: 'failed-sales' as NavSection, label: 'Failed Sales', icon: Flag },
         { id: 'remote-support' as NavSection, label: 'Remote Support', icon: LifeBuoy },
       );
@@ -164,6 +166,7 @@ export default function EmployeeDashboardPage() {
     )}
     {activeSection === 'leads' && <EmployeeRouteGuard permissionKey="leads" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><LeadsSection readOnly /></div></EmployeeRouteGuard>}
     {activeSection === 'sales' && <EmployeeRouteGuard permissionKey="sales" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><SalesSection readOnly /></div></EmployeeRouteGuard>}
+    {activeSection === 'upgrade' && <EmployeeRouteGuard permissionKey="upgrade" routePermissions={permissions} permissionsLoading={settingsLoading}><UpgradeSection /></EmployeeRouteGuard>}
     {activeSection === 'failed-sales' && <EmployeeRouteGuard permissionKey="failed-sales" routePermissions={permissions} permissionsLoading={settingsLoading}><div className="[_&_button]:hidden"><FailedSalesSection employeeView /></div></EmployeeRouteGuard>}
     {activeSection === 'remote-support' && <EmployeeRouteGuard permissionKey="remote-support" routePermissions={permissions} permissionsLoading={settingsLoading}><RemoteSupportSection role={employee?.role} /></EmployeeRouteGuard>}
     {activeSection === 'verification' && <VerificationSection employeeView />}

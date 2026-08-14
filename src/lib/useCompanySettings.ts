@@ -5,6 +5,7 @@ import { companyService } from '@/services/companyService';
 
 export const routePermissionKeyMap: Record<string, string> = {
   'failed-sales': 'sales',
+  'upgrade': 'sales',
   'profile': 'overview',
 };
 
