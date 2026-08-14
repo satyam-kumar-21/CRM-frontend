@@ -211,7 +211,7 @@ export function UpgradeSection() {
                   <button onClick={() => openUpgradeModal(customer)} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white">Open upgrade</button>
                 </div>
                 <div className="mt-2 space-y-1 text-[11px] text-slate-300">
-                  <p><span className="text-slate-500">Email:</span> {customer.customerEmail || customer.email || '—'}</p>
+                  <p><span className="text-slate-500">Email:</span> {customer.customerEmail || '—'}</p>
                   <p><span className="text-slate-500">Mobile:</span> {customer.mobile || customer.alternateContactNo || customer.contactNo || '—'}</p>
                   <p><span className="text-slate-500">Country:</span> {customer.country || '—'}</p>
                   <p><span className="text-slate-500">System:</span> {customer.system || '—'}</p>
