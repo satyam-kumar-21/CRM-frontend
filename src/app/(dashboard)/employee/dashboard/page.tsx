@@ -24,6 +24,7 @@ import { VerificationTodaysWorkSection } from '../../company-admin/dashboard/com
 import { VerificationSection } from '../../company-admin/dashboard/components/VerificationSection';
 import { FeedbackSection } from '../../company-admin/dashboard/components/FeedbackSection';
 import { useCompanySettings, useCompanyValidation, type CompanySettingsResponse } from '@/lib/useCompanySettings';
+import { applyTheme, THEME_OPTIONS, type ThemeName, getStoredTheme } from '@/lib/theme';
 import type { ChatFilter, IEmployee, IGroupChannel, NavSection } from '../../company-admin/dashboard/types';
 
 export default function EmployeeDashboardPage() {
@@ -181,6 +182,26 @@ function EmployeeProfile({ employee, remoteSupportSummary, projectSummary }: { e
   const isVerification = employee.role === 'VERIFICATION';
   const [verificationStats, setVerificationStats] = useState({ total: 0, pending: 0, inProgress: 0, successful: 0, failed: 0, successRate: 0, positiveResponse: 0, negativeResponse: 0, neutralResponse: 0 });
   const [verificationLoading, setVerificationLoading] = useState(false);
+  const [selectedTheme, setSelectedTheme] = useState<ThemeName>((employee as any).theme || getStoredTheme());
+  const [themeSaving, setThemeSaving] = useState(false);
+
+  useEffect(() => {
+    applyTheme(selectedTheme);
+  }, [selectedTheme]);
+
+  const handleThemeChange = async (theme: ThemeName) => {
+    setSelectedTheme(theme);
+    setThemeSaving(true);
+    try {
+      applyTheme(theme);
+      await companyService.updateTheme(theme);
+    } catch (error) {
+      setSelectedTheme((employee as any).theme || 'blue');
+      applyTheme((employee as any).theme || 'blue');
+    } finally {
+      setThemeSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!isVerification) return;
@@ -278,6 +299,42 @@ function EmployeeProfile({ employee, remoteSupportSummary, projectSummary }: { e
         <ProfileMetric label="Department / role" value={employee.role} />
         <ProfileMetric label="Joined" value={employee.createdAt ? new Date(employee.createdAt).toLocaleDateString() : 'Not available'} />
         <ProfileMetric label="Target progress" value={`${progress}%`} />
+      </div>
+
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-slate-500">Theme</p>
+            <h2 className="mt-1 text-base font-semibold text-white">Choose your theme</h2>
+          </div>
+          {themeSaving && <span className="text-xs text-slate-400">Saving...</span>}
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {THEME_OPTIONS.map((themeOption) => {
+            const active = selectedTheme === themeOption.value;
+            return (
+              <button
+                key={themeOption.value}
+                type="button"
+                onClick={() => void handleThemeChange(themeOption.value)}
+                style={active ? { borderColor: themeOption.bgColor, backgroundColor: themeOption.bgColor + '20', color: '#fff' } : undefined}
+                className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm transition ${active ? 'text-white' : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-600'}`}
+              >
+                <span className="flex items-center gap-2 font-medium">
+                  <span>{themeOption.emoji}</span>
+                  {themeOption.label}
+                </span>
+                <span
+                  className="h-3 w-3 rounded-full ring-2 ring-white/40"
+                  style={{
+                    backgroundColor: themeOption.bgColor,
+                    opacity: active ? 1 : 0.4,
+                  }}
+                />
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

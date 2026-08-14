@@ -42,7 +42,14 @@ export function useCompanySettings(enabled = true) {
 export function useCompanyValidation() {
   return useQuery<CompanyValidationResponse>({
     queryKey: ['companyValidate'],
-    queryFn: companyService.validateSession,
+    queryFn: async () => {
+      const result = await companyService.validateSession();
+      if (result?.user?.theme) {
+        const { applyTheme } = await import('@/lib/theme');
+        applyTheme(result.user.theme);
+      }
+      return result;
+    },
     staleTime: 1000 * 60 * 10,
     retry: false,
     refetchOnWindowFocus: false,

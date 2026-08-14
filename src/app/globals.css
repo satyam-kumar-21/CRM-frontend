@@ -2,6 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --primary-light: #dbeafe;
+  --primary-text: #eff6ff;
+  --border-primary: #3b82f6;
+  --primary-soft: rgba(59, 130, 246, 0.12);
+}
+
+/* Blue (Default) theme - no changes needed, this is the base */
+
+/* Green theme CSS variables */
+:root[data-theme='green'] {
+  --primary: #10b981;
+  --primary-hover: #059669;
+  --primary-light: #d1fae5;
+  --primary-text: #f0fdf4;
+  --border-primary: #10b981;
+  --primary-soft: rgba(16, 185, 129, 0.12);
+}
+
+/* Pink theme - MORE VIBRANT */
+:root[data-theme='pink'] {
+  --primary: #f43f5e;
+  --primary-hover: #e11d48;
+  --primary-light: #ffe4e8;
+  --primary-text: #fff5f7;
+  --border-primary: #f43f5e;
+  --primary-soft: rgba(244, 63, 94, 0.12);
+}
+
+/* Purple theme */
+:root[data-theme='purple'] {
+  --primary: #a855f7;
+  --primary-hover: #9333ea;
+  --primary-light: #f3e8ff;
+  --primary-text: #faf5ff;
+  --border-primary: #a855f7;
+  --primary-soft: rgba(168, 85, 247, 0.12);
+}
+
+/* Orange theme */
+:root[data-theme='orange'] {
+  --primary: #f97316;
+  --primary-hover: #ea580c;
+  --primary-light: #fed7aa;
+  --primary-text: #fff7ed;
+  --border-primary: #f97316;
+  --primary-soft: rgba(249, 115, 22, 0.12);
+}
+
+@layer utilities {
+  .theme-bg {
+    background-color: var(--primary);
+  }
+  .theme-bg-hover:hover {
+    background-color: var(--primary-hover);
+  }
+  .theme-text {
+    color: var(--primary);
+  }
+  .theme-border {
+    border-color: var(--primary);
+  }
+  .theme-soft {
+    background-color: var(--primary-soft);
+  }
+}
+
 @layer base {
   :root {
     --background: 222.2 84% 4.9%;
@@ -10,10 +79,61 @@
     --card-foreground: 210 40% 98%;
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
+    --primary-hsl: 217.2 91.2% 59.8%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
     --border: 217.2 32.6% 17.5%;
   }
+}
+
+@layer utilities {
+  .theme-primary-bg {
+    background: var(--primary);
+  }
+
+  .theme-primary-soft {
+    background: var(--primary-soft);
+  }
+
+  .theme-primary-text {
+    color: var(--primary-text);
+  }
+
+  .theme-border-primary {
+    border-color: var(--border-primary);
+  }
+}
+
+/* COMPLETE GLOBAL THEME COLOR SHIFTING WITH CORRECT HUE ANGLES */
+/* Each theme rotates colors from the base indigo (217°) to the target hue */
+
+/* Blue (Default) - No rotation needed, this is the base */
+html[data-theme='blue'],
+html:not([data-theme]) {
+  filter: hue-rotate(0deg);
+}
+
+/* Green - Rotate to emerald green (159° hue) */
+/* From indigo 217° → green 159° = -58° rotation */
+html[data-theme='green'] {
+  filter: hue-rotate(-58deg);
+}
+
+/* Pink - Rotate to vibrant rose/pink (354° hue) */
+/* From indigo 217° → pink 354° = +137° rotation */
+html[data-theme='pink'] {
+  filter: hue-rotate(137deg);
+}
+
+/* Purple - Rotate to violet purple (280° hue) */
+/* From indigo 217° → purple 280° = +63° rotation */
+html[data-theme='purple'] {
+  filter: hue-rotate(63deg);
+}
+
+/* Orange - Rotate to vibrant orange (27° hue) */
+/* From indigo 217° → orange 27° = -190° rotation */
+html[data-theme='orange'] {
+  filter: hue-rotate(-190deg);
 }

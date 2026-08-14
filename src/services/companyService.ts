@@ -160,6 +160,8 @@ export interface ICompanyDashboard {
   };
 }
 
+export type ThemeName = 'blue' | 'green' | 'pink' | 'purple' | 'orange';
+
 export interface ICompanyEmployee {
   _id: string;
   employeeId: string;
@@ -167,6 +169,7 @@ export interface ICompanyEmployee {
   email: string;
   phone: string;
   role: 'COMPANY_ADMIN' | 'HR' | 'MANAGER' | 'TEAM_LEAD' | 'EMPLOYEE' | 'INTERN' | 'SALES' | 'TECH_SUPPORT' | 'VERIFICATION' | 'FEEDBACK' | 'IT';
+  theme?: ThemeName;
   permissions: string[];
   monthlySalesTarget: number;
   remoteTarget?: number;
@@ -332,8 +335,10 @@ export const companyService = {
   login: async (credentials: { employeeId?: string; email?: string; password: string }) => {
     const res = await api.post('/company/login', credentials);
     const accessToken = res.data?.data?.accessToken || res.data?.accessToken;
+    const theme = res.data?.data?.employee?.theme || res.data?.employee?.theme || 'blue';
     if (typeof window !== 'undefined' && accessToken) {
       window.localStorage.setItem('companyAccessToken', accessToken);
+      window.localStorage.setItem('crm-user-theme', theme);
     }
     return res.data;
   },
@@ -462,6 +467,11 @@ export const companyService = {
   updateLeaveStatus: async (id: string, status: string, rejectReason?: string): Promise<ILeaveRecord> => (await api.patch(`/company/leave/${id}/status`, { status, rejectReason })).data.data,
   // Company settings
   getSettings: async () => (await api.get('/company/settings')).data.data,
+  updateTheme: async (theme: ThemeName) => {
+    const res = await api.patch('/company/theme', { theme });
+    if (typeof window !== 'undefined') window.localStorage.setItem('crm-user-theme', theme);
+    return res.data.data.theme;
+  },
   updateSettings: async (payload: any) => (await api.patch('/company/settings', payload)).data.data,
   listHolidays: async () => (await api.get('/company/settings/holidays')).data.data,
   addHoliday: async (payload: { name: string; date: string }) => (await api.post('/company/settings/holidays', payload)).data.data,
