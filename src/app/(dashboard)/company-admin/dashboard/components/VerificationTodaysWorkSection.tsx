@@ -1,7 +1,7 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
-import { CalendarCheck, ShieldCheck, MessageSquare, CheckCircle, XCircle, Play, DollarSign } from 'lucide-react';
+import { CalendarCheck, ShieldCheck, MessageSquare, CheckCircle, XCircle, Play, DollarSign, Phone } from 'lucide-react';
 import { toast } from 'sonner';
 import { io } from 'socket.io-client';
 import { companyService, ICompanySale } from '@/services/companyService';
@@ -105,8 +105,13 @@ export function VerificationTodaysWorkSection() {
     <div className="min-h-full space-y-6 overflow-y-auto bg-slate-950 p-6 text-slate-100 font-sans">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
         <div>
-          <h1 className="flex items-center gap-2.5 text-2xl font-bold text-white tracking-tight"><CalendarCheck className="h-7 w-7 text-emerald-400" /> Today's Work — Verification & Feedback</h1>
-          <p className="mt-1 text-sm text-slate-400">Verify sales and collect customer feedback.</p>
+          <h1 className="flex items-center gap-2.5 text-2xl font-bold text-white tracking-tight">
+            <CalendarCheck className="h-7 w-7 text-emerald-400" />
+            Today's Verification & Feedback Work
+          </h1>
+          <p className="mt-1 text-sm text-slate-400">
+            Assigned daily verification tasks and post-sale customer feedback calls.
+          </p>
         </div>
       </header>
 
@@ -137,9 +142,29 @@ export function VerificationTodaysWorkSection() {
             <div key={rec._id} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow space-y-3">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="text-base font-bold text-white">{rec.name}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-base font-bold text-white">{rec.name}</p>
+                    {rec.customerId && <span className="rounded bg-indigo-500/20 px-1.5 py-0.5 text-[10px] font-mono font-bold text-indigo-300 border border-indigo-500/30">#{rec.customerId}</span>}
+                    {rec.customerType === 'UPGRADE' && <span className="rounded bg-fuchsia-500/20 px-1.5 py-0.5 text-[9px] font-bold text-fuchsia-300 border border-fuchsia-500/30">UPGRADE</span>}
+                  </div>
                   <p className="text-xs text-slate-400 mt-0.5">{rec.country} · {rec.system} · Sales by: {rec.salesEmployeeName || rec.connectedBy}</p>
-                  <p className="text-sm font-semibold text-emerald-400 mt-1"><DollarSign className="inline h-3.5 w-3.5" />${rec.amount?.toLocaleString()} · {rec.paymentMethod}</p>
+                  {(rec.alternateContactNo || rec.customerEmail) && (
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                      {rec.alternateContactNo && (
+                        <span className="font-mono text-emerald-400 font-semibold flex items-center gap-1">
+                          <Phone className="h-3 w-3" /> {rec.alternateContactNo}
+                        </span>
+                      )}
+                      {rec.customerEmail && <span className="text-slate-400">{rec.customerEmail}</span>}
+                    </div>
+                  )}
+                  {rec.salesEmployeeRemark && (
+                    <div className="mt-2 rounded-lg border border-slate-800 bg-slate-950/80 p-2 text-xs text-slate-200">
+                      <span className="font-semibold text-indigo-400 mr-1">💬 Sales Message:</span>
+                      {rec.salesEmployeeRemark}
+                    </div>
+                  )}
+                  <p className="text-sm font-semibold text-emerald-400 mt-1.5"><DollarSign className="inline h-3.5 w-3.5" />${rec.amount?.toLocaleString()} · {rec.paymentMethod}</p>
                 </div>
                 <div className="flex gap-2">
                   {rec.verificationStatus === 'PENDING' && (
@@ -191,9 +216,29 @@ export function VerificationTodaysWorkSection() {
             return (
               <div key={rec._id} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow space-y-3">
                 <div>
-                  <p className="text-base font-bold text-white">{rec.name}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-base font-bold text-white">{rec.name}</p>
+                    {rec.customerId && <span className="rounded bg-indigo-500/20 px-1.5 py-0.5 text-[10px] font-mono font-bold text-indigo-300 border border-indigo-500/30">#{rec.customerId}</span>}
+                    {rec.customerType === 'UPGRADE' && <span className="rounded bg-fuchsia-500/20 px-1.5 py-0.5 text-[9px] font-bold text-fuchsia-300 border border-fuchsia-500/30">UPGRADE</span>}
+                  </div>
                   <p className="text-xs text-slate-400">{rec.country} · {rec.system} · Sales by: {rec.salesEmployeeName || rec.connectedBy}</p>
-                  <p className="text-sm font-semibold text-emerald-400 mt-1"><DollarSign className="inline h-3.5 w-3.5" />${rec.amount?.toLocaleString()} · Verified: {rec.verifiedByName}</p>
+                  {(rec.alternateContactNo || rec.customerEmail) && (
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                      {rec.alternateContactNo && (
+                        <span className="font-mono text-emerald-400 font-semibold flex items-center gap-1">
+                          <Phone className="h-3 w-3" /> {rec.alternateContactNo}
+                        </span>
+                      )}
+                      {rec.customerEmail && <span className="text-slate-400">{rec.customerEmail}</span>}
+                    </div>
+                  )}
+                  {rec.salesEmployeeRemark && (
+                    <div className="mt-2 rounded-lg border border-slate-800 bg-slate-950/80 p-2 text-xs text-slate-200">
+                      <span className="font-semibold text-indigo-400 mr-1">💬 Sales Message:</span>
+                      {rec.salesEmployeeRemark}
+                    </div>
+                  )}
+                  <p className="text-sm font-semibold text-emerald-400 mt-1.5"><DollarSign className="inline h-3.5 w-3.5" />${rec.amount?.toLocaleString()} · Verified: {rec.verifiedByName || 'Verification Team'}</p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>

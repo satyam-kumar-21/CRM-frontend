@@ -304,17 +304,42 @@ export function VerificationSection({ employeeView = false }: { employeeView?: b
               filtered.map((rec) => (
                 <tr key={rec._id} className="hover:bg-slate-800/30 transition-colors">
                   <td className="p-3.5">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <p className="font-bold text-white text-sm">{rec.name}</p>
                       {rec.customerId && (
                         <span className="rounded bg-indigo-500/20 px-1.5 py-0.5 text-[10px] font-mono font-bold text-indigo-300 border border-indigo-500/30">
                           #{rec.customerId}
                         </span>
                       )}
+                      {rec.customerType === 'UPGRADE' && (
+                        <span className="rounded bg-fuchsia-500/20 px-1.5 py-0.5 text-[9px] font-bold text-fuchsia-300 border border-fuchsia-500/30">
+                          UPGRADE
+                        </span>
+                      )}
                     </div>
                     <p className="text-[11px] text-slate-400">{rec.country} · {rec.system}{rec.plan ? ` · ${rec.plan}` : ''}</p>
-                    {rec.customerEmail && <p className="text-[10px] text-slate-400">{employeeView ? `${maskSensitiveValue(rec.customerEmail)}${rec.alternateContactNo ? ` · Alt: ${maskSensitiveValue(rec.alternateContactNo)}` : ''}` : `${rec.customerEmail}${rec.alternateContactNo ? ` · Alt: ${rec.alternateContactNo}` : ''}`}</p>}
-                    {rec.customerAddress && <p className="text-[10px] text-slate-500 truncate max-w-xs">{rec.customerAddress}</p>}
+                    {(rec.alternateContactNo || rec.customerEmail) && (
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[10px]">
+                        {rec.alternateContactNo && (
+                          <span className="font-mono text-emerald-400 flex items-center gap-1">
+                            <Phone className="h-2.5 w-2.5" />
+                            {employeeView ? maskSensitiveValue(rec.alternateContactNo) : rec.alternateContactNo}
+                          </span>
+                        )}
+                        {rec.customerEmail && (
+                          <span className="text-slate-400">
+                            {employeeView ? maskSensitiveValue(rec.customerEmail) : rec.customerEmail}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {rec.salesEmployeeRemark && (
+                      <div className="mt-1.5 rounded-lg border border-slate-800 bg-slate-950/70 p-2 text-[10px] text-slate-300 max-w-sm">
+                        <span className="font-semibold text-indigo-400 block mb-0.5">💬 Sales Message:</span>
+                        {rec.salesEmployeeRemark}
+                      </div>
+                    )}
+                    {rec.customerAddress && <p className="text-[10px] text-slate-500 truncate max-w-xs mt-0.5">{rec.customerAddress}</p>}
                   </td>
                   <td className="p-3.5">
                     <p className="font-semibold text-slate-200">{rec.salesEmployeeName || rec.connectedBy}</p>

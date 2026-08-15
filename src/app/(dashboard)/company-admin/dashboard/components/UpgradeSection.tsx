@@ -21,7 +21,7 @@ const calculateUpgradeTotals = (draft: any) => {
     const salesTaxAmount = (amount * taxValue) / 100;
     return { salesTaxAmount, finalAmount: amount + salesTaxAmount };
   }
-  const salesTaxAmount = Number(draft.salesTaxAmount || 0);
+  const salesTaxAmount = Number(draft.salesTaxValue || draft.salesTaxAmount || 0);
   return { salesTaxAmount, finalAmount: amount + salesTaxAmount };
 };
 
@@ -39,7 +39,7 @@ export function UpgradeSection() {
       try {
         const [upgradeList, employeeList] = await Promise.all([
           companyService.getUpgrades(),
-          companyService.getEmployees(),
+          companyService.getEmployees().catch(() => []),
         ]);
         setUpgrades(upgradeList || []);
         setEmployees(employeeList || []);
@@ -89,6 +89,16 @@ export function UpgradeSection() {
       salesTaxAmount: '0',
       finalAmount: '',
       salesEmployeeRemark: '',
+      needsTechSupport: 'no',
+      previousDetails: {
+        amount: customer.finalAmount || customer.amount || 0,
+        system: customer.system || '—',
+        plan: customer.plan || '—',
+        issues: customer.issues || '—',
+        connectedBy: customer.salesEmployeeName || customer.connectedBy || '—',
+        saleDate: customer.saleDate || '—',
+        paymentMethod: customer.paymentMethod || '—',
+      },
     };
     const totals = calculateUpgradeTotals(draft);
     setUpgradeDraft({ ...draft, salesTaxAmount: String(totals.salesTaxAmount), finalAmount: String(totals.finalAmount) });
@@ -126,9 +136,10 @@ export function UpgradeSection() {
         salesTaxAmount: Number(upgradeDraft.salesTaxAmount || 0),
         finalAmount: Number(upgradeDraft.finalAmount || 0),
         salesEmployeeRemark: upgradeDraft.salesEmployeeRemark,
+        needsTechSupport: upgradeDraft.needsTechSupport,
       });
       setUpgrades((current) => [created, ...current]);
-      toast.success(`Upgrade #${created.upgradeNumber || 1} created successfully`);
+      toast.success(`Upgrade #${created.upgradeNumber || 1} created successfully & sent to Verification`);
       setUpgradeDraft(null);
       setSearchTerm('');
       setSearchResults([]);
@@ -215,6 +226,7 @@ export function UpgradeSection() {
                   <p><span className="text-slate-500">Mobile:</span> {customer.mobile || customer.alternateContactNo || customer.contactNo || '—'}</p>
                   <p><span className="text-slate-500">Country:</span> {customer.country || '—'}</p>
                   <p><span className="text-slate-500">System:</span> {customer.system || '—'}</p>
+                  {customer.amount ? <p><span className="text-slate-500">Prev Amount:</span> <span className="font-semibold text-emerald-400">${Number(customer.finalAmount || customer.amount).toLocaleString()}</span></p> : null}
                 </div>
               </div>
             ))}
@@ -223,19 +235,47 @@ export function UpgradeSection() {
       </div>
 
       {upgradeDraft && (
-        <div className="rounded-xl border border-indigo-500/30 bg-slate-900 p-4">
-          <div className="flex items-center justify-between gap-3">
+        <div className="rounded-xl border border-indigo-500/30 bg-slate-900 p-5 shadow-2xl space-y-4">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-800 pb-3">
             <div>
-              <h2 className="text-lg font-semibold text-white">Upgrade customer</h2>
-              <p className="text-sm text-slate-400">{upgradeDraft.customerName} · {upgradeDraft.customerId || 'Customer record'}</p>
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-indigo-400" />
+                Upgrade Customer
+              </h2>
+              <p className="text-xs text-slate-400">{upgradeDraft.customerName} · {upgradeDraft.customerId || 'Customer record'}</p>
             </div>
-            <button type="button" onClick={() => setUpgradeDraft(null)} className="rounded-lg bg-slate-700 px-3 py-2 text-xs text-white"><X className="inline h-4 w-4" /></button>
+            <button type="button" onClick={() => setUpgradeDraft(null)} className="rounded-lg bg-slate-700 px-3 py-1.5 text-xs text-white hover:bg-slate-600"><X className="inline h-4 w-4" /></button>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-4">
+          {/* Previous Purchase & Services Details */}
+          {upgradeDraft.previousDetails && (
+            <div className="rounded-xl border border-slate-700/80 bg-slate-950/90 p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-indigo-400 mb-2">Previous Purchase & Service History</p>
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 text-xs">
+                <div className="rounded-lg bg-slate-900 p-2.5 border border-slate-800">
+                  <span className="text-slate-400 block text-[11px]">Previous Amount:</span>
+                  <span className="text-emerald-400 font-mono font-bold text-sm">${Number(upgradeDraft.previousDetails.amount || 0).toLocaleString()}</span>
+                </div>
+                <div className="rounded-lg bg-slate-900 p-2.5 border border-slate-800">
+                  <span className="text-slate-400 block text-[11px]">System & Plan:</span>
+                  <span className="text-white font-medium">{upgradeDraft.previousDetails.system} {upgradeDraft.previousDetails.plan !== '—' ? `· ${upgradeDraft.previousDetails.plan}` : ''}</span>
+                </div>
+                <div className="rounded-lg bg-slate-900 p-2.5 border border-slate-800">
+                  <span className="text-slate-400 block text-[11px]">Past Issues / Services:</span>
+                  <span className="text-slate-200 truncate block">{upgradeDraft.previousDetails.issues || 'None recorded'}</span>
+                </div>
+                <div className="rounded-lg bg-slate-900 p-2.5 border border-slate-800">
+                  <span className="text-slate-400 block text-[11px]">Original Sale by / Date:</span>
+                  <span className="text-slate-300">{upgradeDraft.previousDetails.connectedBy} {upgradeDraft.previousDetails.saleDate !== '—' ? `(${upgradeDraft.previousDetails.saleDate})` : ''}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid gap-3 md:grid-cols-4">
             <label className="space-y-1 text-xs text-slate-400"><span>Customer</span><input value={upgradeDraft.customerName} readOnly className={`${input} block w-full bg-slate-950/80`} /></label>
             <label className="space-y-1 text-xs text-slate-400"><span>Email</span><input value={upgradeDraft.customerEmail} readOnly className={`${input} block w-full bg-slate-950/80`} /></label>
-            <label className="space-y-1 text-xs text-slate-400"><span>Mobile</span><input value={upgradeDraft.mobile} readOnly className={`${input} block w-full bg-slate-950/80`} /></label>
+            <label className="space-y-1 text-xs text-slate-400"><span>Mobile</span><input value={upgradeDraft.mobile} readOnly className={`${input} block w-full bg-slate-950/80 font-mono text-emerald-400`} /></label>
             <label className="space-y-1 text-xs text-slate-400"><span>Country</span><input value={upgradeDraft.country} readOnly className={`${input} block w-full bg-slate-950/80`} /></label>
             <label className="space-y-1 text-xs text-slate-400"><span>System</span><input value={upgradeDraft.system} readOnly className={`${input} block w-full bg-slate-950/80`} /></label>
             <label className="space-y-1 text-xs text-slate-400"><span>Payment Method</span><select value={upgradeDraft.paymentMethod} onChange={(event) => handleUpgradeFieldChange('paymentMethod', event.target.value)} className={`${select} block w-full`}>
@@ -246,15 +286,45 @@ export function UpgradeSection() {
               <option value="DIRECT_AMOUNT">Direct Amount</option>
             </select></label>
             <label className="space-y-1 text-xs text-slate-400"><span>Tax Value</span><input type="number" value={upgradeDraft.salesTaxValue} onChange={(event) => handleUpgradeFieldChange('salesTaxValue', event.target.value)} className={`${input} block w-full`} /></label>
-            <label className="space-y-1 text-xs text-slate-400"><span>Upgrade Amount</span><input type="number" min="0" value={upgradeDraft.upgradeAmount} onChange={(event) => handleUpgradeFieldChange('upgradeAmount', event.target.value)} className={`${input} block w-full`} /></label>
+            <label className="space-y-1 text-xs text-slate-400"><span>Upgrade Amount ($)</span><input type="number" min="0" value={upgradeDraft.upgradeAmount} onChange={(event) => handleUpgradeFieldChange('upgradeAmount', event.target.value)} placeholder="e.g. 500" className={`${input} block w-full border-emerald-500/50 font-bold`} /></label>
             <label className="space-y-1 text-xs text-slate-400"><span>Sales Tax Amount</span><input value={upgradeDraft.salesTaxAmount} readOnly className={`${input} block w-full bg-slate-950/80`} /></label>
-            <label className="space-y-1 text-xs text-slate-400"><span>Final Amount</span><input value={upgradeDraft.finalAmount} readOnly className={`${input} block w-full bg-slate-950/80`} /></label>
-            <label className="space-y-1 text-xs text-slate-400 md:col-span-2"><span>Sales Employee Remark</span><textarea value={upgradeDraft.salesEmployeeRemark} onChange={(event) => handleUpgradeFieldChange('salesEmployeeRemark', event.target.value)} rows={3} className={`${input} block w-full resize-none`} /></label>
+            <label className="space-y-1 text-xs text-slate-400"><span>Final Amount</span><input value={upgradeDraft.finalAmount} readOnly className={`${input} block w-full bg-slate-950/80 text-emerald-400 font-bold`} /></label>
+            
+            {/* Tech Support Need Option */}
+            <label className="space-y-1 text-xs text-slate-400">
+              <span>Tech Support Needed?</span>
+              <select
+                value={upgradeDraft.needsTechSupport || 'no'}
+                onChange={(event) => handleUpgradeFieldChange('needsTechSupport', event.target.value)}
+                className={`${select} block w-full ${upgradeDraft.needsTechSupport === 'yes' ? 'border-cyan-500 bg-cyan-950/30 text-cyan-200 font-bold' : ''}`}
+              >
+                <option value="no">No (None)</option>
+                <option value="yes">Yes (Dispatch to Tech Support)</option>
+              </select>
+            </label>
+
+            <label className="space-y-1 text-xs text-slate-400 md:col-span-4">
+              <span>Upgrade Message / Sales Remark</span>
+              <textarea
+                value={upgradeDraft.salesEmployeeRemark}
+                onChange={(event) => handleUpgradeFieldChange('salesEmployeeRemark', event.target.value)}
+                rows={3}
+                placeholder="Enter details of what was upgraded, service message, or tech support instructions..."
+                className={`${input} block w-full resize-none`}
+              />
+            </label>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button onClick={() => void submitUpgrade()} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white">Save upgrade</button>
-            <button type="button" onClick={() => setUpgradeDraft(null)} className="rounded-lg bg-slate-700 px-3 py-2 text-xs text-white">Cancel</button>
+          <div className="mt-4 flex flex-wrap items-center gap-3 pt-2 border-t border-slate-800">
+            <button onClick={() => void submitUpgrade()} className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-xs font-bold text-white shadow">
+              Save Upgrade & Send to Verification
+            </button>
+            <button type="button" onClick={() => setUpgradeDraft(null)} className="rounded-lg bg-slate-700 hover:bg-slate-600 px-3.5 py-2 text-xs text-white">Cancel</button>
+            {upgradeDraft.needsTechSupport === 'yes' && (
+              <span className="text-[11px] text-cyan-400 font-medium ml-auto">
+                ⚡ Tech Support ticket will automatically be dispatched.
+              </span>
+            )}
           </div>
         </div>
       )}
