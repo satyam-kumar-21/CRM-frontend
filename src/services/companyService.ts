@@ -279,6 +279,7 @@ export interface ICompanySale {
   paymentMerchant?: string;
   connectedBy: string;
   customerType?: 'NEW' | 'EXISTING_CUSTOMER' | 'UPGRADE';
+  transactionType?: 'SALE' | 'UPGRADE';
   salesEmployeeId?: string;
   salesEmployeeName?: string;
   techSupportEmployeeId?: string;

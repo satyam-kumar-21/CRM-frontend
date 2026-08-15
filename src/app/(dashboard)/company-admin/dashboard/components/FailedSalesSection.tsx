@@ -28,7 +28,7 @@ export function FailedSalesSection({ employeeView = false }: { employeeView?: bo
       && matchesBusinessDateFilters(sale.saleDate, filters)
   )), [sales, filters]);
 
-  const revenue = filtered.reduce((total, sale) => total + sale.amount, 0);
+  const revenue = filtered.reduce((total, sale) => total + Number(sale.finalAmount ?? sale.amount ?? 0), 0);
   const maskField = (value?: string) => (employeeView ? maskSensitiveValue(value) : value || '—');
 
   return (
@@ -56,7 +56,7 @@ export function FailedSalesSection({ employeeView = false }: { employeeView?: bo
             {filtered.map((sale) => (
               <tr key={sale._id}>
                 <td className="p-3 font-semibold text-white">{sale.name}<span className="block text-slate-500">{sale.country}</span></td>
-                <td className="p-3 text-emerald-400">${sale.amount.toLocaleString()}</td>
+                <td className="p-3 text-emerald-400">${Number(sale.finalAmount ?? sale.amount ?? 0).toLocaleString()}</td>
                 <td className="p-3">{sale.connectedBy}</td>
                 <td className="p-3">{sale.saleDate}</td>
                 <td className="p-3 text-slate-200">{employeeView ? maskField(sale.failedReason) : sale.failedReason || 'N/A'}</td>
@@ -70,7 +70,7 @@ export function FailedSalesSection({ employeeView = false }: { employeeView?: bo
 }
 
 function downloadCsv(rows: ICompanySale[]) {
-  const csv = [['Customer', 'Country', 'System', 'Closed By', 'Date', 'Amount', 'Failed Reason'], ...rows.map((sale) => [sale.name, sale.country, sale.system, sale.connectedBy, sale.saleDate, String(sale.amount), sale.failedReason || 'N/A'])];
+  const csv = [['Customer', 'Country', 'System', 'Closed By', 'Date', 'Amount', 'Failed Reason'], ...rows.map((sale) => [sale.name, sale.country, sale.system, sale.connectedBy, sale.saleDate, String(sale.finalAmount ?? sale.amount ?? 0), sale.failedReason || 'N/A'])];
   const text = csv.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(',')).join('\n');
   const link = document.createElement('a');
   link.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
