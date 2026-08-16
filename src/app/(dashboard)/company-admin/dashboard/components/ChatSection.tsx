@@ -352,9 +352,9 @@ export function ChatSection(props: ChatSectionProps) {
   const saleWorkflow = saleMessage ? parseWorkflow(saleMessage.content) : null;
 
   return (
-    <div className="grid h-full grid-cols-1 overflow-hidden md:grid-cols-[340px_1fr] bg-slate-950 font-sans">
+    <div className="grid h-full min-h-0 grid-cols-1 overflow-hidden md:grid-cols-[340px_1fr] bg-slate-950 font-sans">
       {/* Sidebar Channels List */}
-      <aside className="flex flex-col border-r border-slate-800/80 bg-slate-900/40">
+      <aside className="flex min-h-0 flex-col border-r border-slate-800/80 bg-slate-900/40">
         <div className="space-y-3 border-b border-slate-800/80 bg-slate-900/60 p-3.5">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-white tracking-tight">Workspace Chat</h2>

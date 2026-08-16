@@ -51,8 +51,8 @@ export function CompanyAdminSidebar({
 
   return (
     <>
-    <aside className="flex flex-col border-r border-slate-800/80 bg-slate-900/90 px-4 py-5 backdrop-blur-md">
-      <div className="mb-6">
+    <aside className="flex min-h-0 flex-col border-r border-slate-800/80 bg-slate-900/90 px-4 py-5 backdrop-blur-md">
+      <div className="mb-6 shrink-0">
         <div className="flex items-center gap-3 rounded-2xl bg-slate-950/80 p-3.5 border border-slate-800/60 shadow-md">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white shadow-lg shadow-indigo-500/20">
             <ShieldCheck className="h-5 w-5" />
@@ -61,7 +61,7 @@ export function CompanyAdminSidebar({
         </div>
       </div>
 
-      <nav className="space-y-1 flex-1">
+      <nav className="flex-1 space-y-1 overflow-y-auto pr-1">
         {navigationMenu.map((item) => {
           const Icon = item.icon;
           const active = activeSection === item.id;
