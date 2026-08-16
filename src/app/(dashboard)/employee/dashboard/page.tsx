@@ -142,7 +142,7 @@ export default function EmployeeDashboardPage() {
   const canSendLeads = employee?.role === 'MANAGER' || employee?.role === 'COMPANY_ADMIN';
 
   if (settingsLoading || dashboardQuery.isLoading) {
-    return <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-100"><p className="text-sm text-slate-400">Loading employee permissions...</p></div>;
+    return <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-100"><p className="text-sm text-slate-400">CRM created by satyam...</p></div>;
   }
 
   if (settingsError || !validationQuery.data) {
@@ -175,11 +175,11 @@ export default function EmployeeDashboardPage() {
     {activeSection === 'attendance' && <EmployeeRouteGuard permissionKey="attendance" routePermissions={permissions} permissionsLoading={settingsLoading}><AttendanceSection readOnly /></EmployeeRouteGuard>}
     {activeSection === 'announcements' && <EmployeeRouteGuard permissionKey="announcements" routePermissions={permissions} permissionsLoading={settingsLoading}><AnnouncementsSection readOnly /></EmployeeRouteGuard>}
     {activeSection === 'leave' && <EmployeeRouteGuard permissionKey="leave" routePermissions={permissions} permissionsLoading={settingsLoading}><LeaveSection readOnly /></EmployeeRouteGuard>}
-    {activeSection === 'profile' && employee && <EmployeeProfile employee={employee} remoteSupportSummary={dashboardQuery.data?.remoteSupportSummary} projectSummary={dashboardQuery.data?.projectSummary} />}
+    {activeSection === 'profile' && employee && dashboardStats && <EmployeeProfile employee={employee} stats={dashboardStats} remoteSupportSummary={dashboardQuery.data?.remoteSupportSummary} projectSummary={dashboardQuery.data?.projectSummary} />}
   </main></div></div></ProtectedRoute>;
 }
 
-function EmployeeProfile({ employee, remoteSupportSummary, projectSummary }: { employee: ICompanyDashboard['employee']; remoteSupportSummary?: ICompanyDashboard['remoteSupportSummary']; projectSummary?: ICompanyDashboard['projectSummary']; }) {
+function EmployeeProfile({ employee, stats, remoteSupportSummary, projectSummary }: { employee: ICompanyDashboard['employee']; stats: ICompanyDashboard['stats']; remoteSupportSummary?: ICompanyDashboard['remoteSupportSummary']; projectSummary?: ICompanyDashboard['projectSummary']; }) {
   const isTechSupport = employee.role === 'TECH_SUPPORT';
   const isSales = employee.role === 'SALES';
   const isVerification = employee.role === 'VERIFICATION';
@@ -240,7 +240,8 @@ function EmployeeProfile({ employee, remoteSupportSummary, projectSummary }: { e
   const remoteProgress = remoteTarget ? Math.min(100, Math.round((remoteSuccessful / remoteTarget) * 100)) : 0;
 
   const salesTarget = employee.monthlySalesTarget || 0;
-  const salesAchieved = employee.monthlySalesAchieved || 0;
+  // Use actual calculated monthly sales achieved from stats
+  const salesAchieved = stats?.monthlySalesAchieved || employee.monthlySalesAchieved || 0;
   const salesProgress = salesTarget ? Math.min(100, Math.round((salesAchieved / salesTarget) * 100)) : 0;
 
   const progress = isTechSupport ? remoteProgress : salesProgress;
@@ -258,6 +259,42 @@ function EmployeeProfile({ employee, remoteSupportSummary, projectSummary }: { e
             <ProfileMetric label="Department" value={employee.role} />
           </div>
         </header>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-slate-500">Theme</p>
+              <h2 className="mt-1 text-base font-semibold text-white">Choose your theme</h2>
+            </div>
+            {themeSaving && <span className="text-xs text-slate-400">Saving...</span>}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {THEME_OPTIONS.map((themeOption) => {
+              const active = selectedTheme === themeOption.value;
+              return (
+                <button
+                  key={themeOption.value}
+                  type="button"
+                  onClick={() => void handleThemeChange(themeOption.value)}
+                  style={active ? { borderColor: themeOption.bgColor, backgroundColor: themeOption.bgColor + '20', color: '#fff' } : undefined}
+                  className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm transition ${active ? 'text-white' : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-600'}`}
+                >
+                  <span className="flex items-center gap-2 font-medium">
+                    <span>{themeOption.emoji}</span>
+                    {themeOption.label}
+                  </span>
+                  <span
+                    className="h-3 w-3 rounded-full ring-2 ring-white/40"
+                    style={{
+                      backgroundColor: themeOption.bgColor,
+                      opacity: active ? 1 : 0.4,
+                    }}
+                  />
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <ProfileMetric label="Role" value={employee.role} />
@@ -356,12 +393,12 @@ function EmployeeProfile({ employee, remoteSupportSummary, projectSummary }: { e
           </section>
         ) : (
           <section className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Performance snapshot</h2>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Monthly Performance</h2>
             <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
-              <ProfileMetric label="Target" value={salesTarget ? `$${salesTarget.toLocaleString()}` : 'Not assigned'} />
-              <ProfileMetric label="Completed" value={salesAchieved ? `$${salesAchieved.toLocaleString()}` : '0'} />
+              <ProfileMetric label="Monthly Target" value={salesTarget ? `$${salesTarget.toLocaleString()}` : 'Not assigned'} />
+              <ProfileMetric label="Actual Achieved" value={salesAchieved ? `$${salesAchieved.toLocaleString()}` : '$0'} />
               <ProfileMetric label="Remaining" value={salesTarget ? `$${Math.max(0, salesTarget - salesAchieved).toLocaleString()}` : 'Not assigned'} />
-              <ProfileMetric label="Leads converted" value={String(employee.leadsConverted || 0)} />
+              <ProfileMetric label="Achievement %" value={`${salesProgress}%`} />
             </div>
             <div className="mt-5 h-2 rounded-full bg-slate-800">
               <div className="h-2 rounded-full bg-indigo-500" style={{ width: `${progress}%` }} />

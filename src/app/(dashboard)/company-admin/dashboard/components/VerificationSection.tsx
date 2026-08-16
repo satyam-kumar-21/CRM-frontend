@@ -386,20 +386,22 @@ export function VerificationSection({ employeeView = false }: { employeeView?: b
                     )}
                   </td>
                   <td className="p-3.5 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => handleEdit(rec)}
-                        className="rounded-lg bg-slate-700 px-2.5 py-1.5 text-[10px] font-semibold text-slate-200 hover:bg-slate-600"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => void handleDelete(rec._id)}
-                        className="rounded-lg bg-rose-700 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-rose-600"
-                      >
-                        Delete
-                      </button>
-                    </div>
+                    {rec.verificationStatus !== 'SUCCESSFUL' && (
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => handleEdit(rec)}
+                          className="rounded-lg bg-slate-700 px-2.5 py-1.5 text-[10px] font-semibold text-slate-200 hover:bg-slate-600"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => void handleDelete(rec._id)}
+                          className="rounded-lg bg-rose-700 px-2.5 py-1.5 text-[10px] font-semibold text-white hover:bg-rose-600"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
                     {rec.verificationStatus === 'PENDING' && (
                       <div className="flex justify-end gap-2 mt-2">
                         <button

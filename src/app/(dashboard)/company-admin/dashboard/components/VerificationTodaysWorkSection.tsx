@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CalendarCheck, ShieldCheck, MessageSquare, CheckCircle, XCircle, Play, DollarSign, Phone } from 'lucide-react';
+import { CalendarCheck, ShieldCheck, MessageSquare, CheckCircle, XCircle, Play, DollarSign, Phone, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { io } from 'socket.io-client';
 import { companyService, ICompanySale } from '@/services/companyService';
@@ -12,17 +12,21 @@ export function VerificationTodaysWorkSection() {
   const [verRecords, setVerRecords] = useState<ICompanySale[]>([]);
   const [fbRecords, setFbRecords] = useState<ICompanySale[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'verification' | 'feedback'>('verification');
+  const [activeTab, setActiveTab] = useState<'verification' | 'pending' | 'feedback'>('verification');
 
   // Verification modals
   const [successModalId, setSuccessModalId] = useState<string | null>(null);
   const [verNotes, setVerNotes] = useState('');
   const [failedModalId, setFailedModalId] = useState<string | null>(null);
   const [failedReason, setFailedReason] = useState('');
+  const [pendingVerModalId, setPendingVerModalId] = useState<string | null>(null);
+  const [pendingVerReason, setPendingVerReason] = useState('');
 
-  // Feedback forms
+  // Feedback forms & modals
   const [fbForms, setFbForms] = useState<Record<string, { rating: FeedbackRating; notes: string }>>({});
   const [submittingFbId, setSubmittingFbId] = useState<string | null>(null);
+  const [pendingFbModalId, setPendingFbModalId] = useState<string | null>(null);
+  const [pendingFbReason, setPendingFbReason] = useState('');
   const [busy, setBusy] = useState(false);
 
   const fetchAll = async () => {
@@ -82,6 +86,32 @@ export function VerificationTodaysWorkSection() {
     finally { setBusy(false); }
   };
 
+  const handleVerPending = async () => {
+    if (!pendingVerModalId) return;
+    if (!pendingVerReason.trim()) { toast.error('Pending reason is required'); return; }
+    try {
+      setBusy(true);
+      await companyService.completeVerification(pendingVerModalId, { status: 'PENDING', pendingReason: pendingVerReason.trim() });
+      toast.success('Verification marked as pending.');
+      setPendingVerModalId(null); setPendingVerReason('');
+      await fetchAll();
+    } catch (error: any) { toast.error(error?.response?.data?.message || 'Unable to mark pending'); }
+    finally { setBusy(false); }
+  };
+
+  const handleFeedbackPending = async () => {
+    if (!pendingFbModalId) return;
+    if (!pendingFbReason.trim()) { toast.error('Pending reason is required'); return; }
+    try {
+      setSubmittingFbId(pendingFbModalId);
+      await companyService.completeFeedback(pendingFbModalId, { status: 'PENDING', pendingReason: pendingFbReason.trim() });
+      toast.success('Feedback marked as pending.');
+      setPendingFbModalId(null); setPendingFbReason('');
+      await fetchAll();
+    } catch (error: any) { toast.error(error?.response?.data?.message || 'Unable to mark pending'); }
+    finally { setSubmittingFbId(null); }
+  };
+
   const handleFeedbackSubmit = async (id: string) => {
     const form = fbForms[id];
     if (!form?.rating) { toast.error('Please select a feedback rating'); return; }
@@ -94,9 +124,10 @@ export function VerificationTodaysWorkSection() {
     finally { setSubmittingFbId(null); }
   };
 
-  const verPending = verRecords.filter((r) => r.verificationStatus === 'PENDING' || r.verificationStatus === 'IN_PROGRESS');
+  const verPending = verRecords.filter((r) => r.verificationStatus === 'PENDING');
+  const verInProgress = verRecords.filter((r) => r.verificationStatus === 'IN_PROGRESS');
   const verDone = verRecords.filter((r) => r.verificationStatus === 'SUCCESSFUL' || r.verificationStatus === 'FAILED');
-  const fbPending = fbRecords.filter((r) => r.feedbackStatus !== 'COMPLETED');
+  const fbPending = fbRecords.filter((r) => r.feedbackStatus === 'PENDING');
   const fbDone = fbRecords.filter((r) => r.feedbackStatus === 'COMPLETED');
 
   if (loading) return <div className="h-full flex items-center justify-center bg-slate-950 text-slate-400">Loading today's work...</div>;
@@ -125,20 +156,51 @@ export function VerificationTodaysWorkSection() {
 
       {/* Tabs */}
       <div className="flex gap-2">
+        <button onClick={() => setActiveTab('pending')} className={`rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${activeTab === 'pending' ? 'bg-amber-600 text-white shadow' : 'bg-slate-800 text-slate-400 hover:text-white'}`}>
+          <ShieldCheck className="inline h-3.5 w-3.5 mr-1" /> Pending ({verPending.length})
+        </button>
         <button onClick={() => setActiveTab('verification')} className={`rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${activeTab === 'verification' ? 'bg-emerald-600 text-white shadow' : 'bg-slate-800 text-slate-400 hover:text-white'}`}>
-          <ShieldCheck className="inline h-3.5 w-3.5 mr-1" /> Verification ({verPending.length} pending)
+          <ShieldCheck className="inline h-3.5 w-3.5 mr-1" /> In Progress ({verInProgress.length})
         </button>
         <button onClick={() => setActiveTab('feedback')} className={`rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${activeTab === 'feedback' ? 'bg-purple-600 text-white shadow' : 'bg-slate-800 text-slate-400 hover:text-white'}`}>
           <MessageSquare className="inline h-3.5 w-3.5 mr-1" /> Feedback ({fbPending.length} pending)
         </button>
       </div>
 
+      {activeTab === 'pending' && (
+        <section className="space-y-3">
+          {verPending.length === 0 ? (
+            <div className="text-center py-12 border border-slate-800 rounded-2xl bg-slate-900/40 text-slate-500 text-sm">No sales are waiting for verification yet.</div>
+          ) : verPending.map((rec) => (
+            <div key={rec._id} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow space-y-3">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-base font-bold text-white">{rec.name}</p>
+                    {rec.customerId && <span className="rounded bg-indigo-500/20 px-1.5 py-0.5 text-[10px] font-mono font-bold text-indigo-300 border border-indigo-500/30">#{rec.customerId}</span>}
+                    {rec.customerType === 'UPGRADE' && <span className="rounded bg-fuchsia-500/20 px-1.5 py-0.5 text-[9px] font-bold text-fuchsia-300 border border-fuchsia-500/30">UPGRADE</span>}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">{rec.country} · {rec.system} · Sales by: {rec.salesEmployeeName || rec.connectedBy}</p>
+                  <p className="text-sm font-semibold text-emerald-400 mt-1.5"><DollarSign className="inline h-3.5 w-3.5" />${rec.amount?.toLocaleString()} · {rec.paymentMethod}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => void handleStart(rec._id)} className="flex items-center gap-1 rounded-xl bg-sky-600 px-3 py-2 text-xs font-bold text-white hover:bg-sky-500 shadow">
+                    <Play className="h-3.5 w-3.5" /> Start
+                  </button>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">PENDING</span>
+            </div>
+          ))}
+        </section>
+      )}
+
       {/* Verification Tab */}
       {activeTab === 'verification' && (
         <section className="space-y-3">
-          {verPending.length === 0 ? (
-            <div className="text-center py-12 border border-slate-800 rounded-2xl bg-slate-900/40 text-slate-500 text-sm">No pending verifications. All caught up!</div>
-          ) : verPending.map((rec) => (
+          {verInProgress.length === 0 ? (
+            <div className="text-center py-12 border border-slate-800 rounded-2xl bg-slate-900/40 text-slate-500 text-sm">No verification is in progress right now.</div>
+          ) : verInProgress.map((rec) => (
             <div key={rec._id} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow space-y-3">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
@@ -166,27 +228,19 @@ export function VerificationTodaysWorkSection() {
                   )}
                   <p className="text-sm font-semibold text-emerald-400 mt-1.5"><DollarSign className="inline h-3.5 w-3.5" />${rec.amount?.toLocaleString()} · {rec.paymentMethod}</p>
                 </div>
-                <div className="flex gap-2">
-                  {rec.verificationStatus === 'PENDING' && (
-                    <button onClick={() => void handleStart(rec._id)} className="flex items-center gap-1 rounded-xl bg-sky-600 px-3 py-2 text-xs font-bold text-white hover:bg-sky-500 shadow">
-                      <Play className="h-3.5 w-3.5" /> Start
-                    </button>
-                  )}
-                  {(rec.verificationStatus === 'PENDING' || rec.verificationStatus === 'IN_PROGRESS') && (
-                    <>
-                      <button onClick={() => { setSuccessModalId(rec._id); setVerNotes(''); }} className="flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 shadow">
-                        <CheckCircle className="h-3.5 w-3.5" /> Successful
-                      </button>
-                      <button onClick={() => { setFailedModalId(rec._id); setFailedReason(''); }} className="flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-500 shadow">
-                        <XCircle className="h-3.5 w-3.5" /> Failed
-                      </button>
-                    </>
-                  )}
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={() => { setSuccessModalId(rec._id); setVerNotes(''); }} className="flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 shadow">
+                    <CheckCircle className="h-3.5 w-3.5" /> Successful
+                  </button>
+                  <button onClick={() => { setPendingVerModalId(rec._id); setPendingVerReason(''); }} className="flex items-center gap-1 rounded-xl bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-500 shadow">
+                    <Clock className="h-3.5 w-3.5" /> Pending
+                  </button>
+                  <button onClick={() => { setFailedModalId(rec._id); setFailedReason(''); }} className="flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-500 shadow">
+                    <XCircle className="h-3.5 w-3.5" /> Failed
+                  </button>
                 </div>
               </div>
-              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${rec.verificationStatus === 'IN_PROGRESS' ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
-                {rec.verificationStatus || 'PENDING'}
-              </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">IN_PROGRESS</span>
             </div>
           ))}
           {verDone.length > 0 && (
@@ -257,7 +311,10 @@ export function VerificationTodaysWorkSection() {
                     <input type="text" value={form.notes} onChange={(e) => setFbForms((cur) => ({ ...cur, [rec._id]: { ...form, notes: e.target.value } }))} placeholder="Customer feedback notes..." className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-purple-500" />
                   </div>
                 </div>
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => { setPendingFbModalId(rec._id); setPendingFbReason(''); }} className="flex items-center gap-1.5 rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white hover:bg-amber-500 shadow">
+                    <Clock className="h-3.5 w-3.5" /> Mark Pending
+                  </button>
                   <button disabled={submittingFbId === rec._id || !form.rating} onClick={() => void handleFeedbackSubmit(rec._id)} className="flex items-center gap-1.5 rounded-xl bg-purple-600 px-4 py-2 text-xs font-bold text-white hover:bg-purple-500 shadow disabled:opacity-60">
                     <MessageSquare className="h-3.5 w-3.5" /> {submittingFbId === rec._id ? 'Submitting...' : 'Submit Feedback'}
                   </button>
@@ -306,6 +363,38 @@ export function VerificationTodaysWorkSection() {
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setFailedModalId(null)} className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-700">Cancel</button>
               <button disabled={busy} onClick={() => void handleVerFailed()} className="rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-500 shadow disabled:opacity-60">{busy ? 'Saving...' : 'Submit Failure Reason'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Verification Pending Modal */}
+      {pendingVerModalId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl space-y-4">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2"><Clock className="h-5 w-5 text-amber-400" /> Mark as Pending</h3>
+            <label className="block space-y-1 text-xs text-slate-400"><span>Pending Reason <span className="text-amber-400">*</span></span>
+              <textarea required value={pendingVerReason} onChange={(e) => setPendingVerReason(e.target.value)} placeholder="Why is this verification pending? (e.g., Waiting for customer documents...)" className="w-full h-24 rounded-lg border border-slate-700 bg-slate-950 p-2.5 text-xs text-white outline-none focus:border-amber-500" />
+            </label>
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setPendingVerModalId(null)} className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-700">Cancel</button>
+              <button disabled={busy} onClick={() => void handleVerPending()} className="rounded-lg bg-amber-600 px-4 py-2 text-xs font-semibold text-white hover:bg-amber-500 shadow disabled:opacity-60">{busy ? 'Saving...' : 'Mark as Pending'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Feedback Pending Modal */}
+      {pendingFbModalId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl space-y-4">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2"><Clock className="h-5 w-5 text-amber-400" /> Mark as Pending</h3>
+            <label className="block space-y-1 text-xs text-slate-400"><span>Pending Reason <span className="text-amber-400">*</span></span>
+              <textarea required value={pendingFbReason} onChange={(e) => setPendingFbReason(e.target.value)} placeholder="Why is this feedback pending? (e.g., Customer not available...)" className="w-full h-24 rounded-lg border border-slate-700 bg-slate-950 p-2.5 text-xs text-white outline-none focus:border-amber-500" />
+            </label>
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setPendingFbModalId(null)} className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-700">Cancel</button>
+              <button disabled={submittingFbId === pendingFbModalId} onClick={() => void handleFeedbackPending()} className="rounded-lg bg-amber-600 px-4 py-2 text-xs font-semibold text-white hover:bg-amber-500 shadow disabled:opacity-60">{submittingFbId === pendingFbModalId ? 'Saving...' : 'Mark as Pending'}</button>
             </div>
           </div>
         </div>

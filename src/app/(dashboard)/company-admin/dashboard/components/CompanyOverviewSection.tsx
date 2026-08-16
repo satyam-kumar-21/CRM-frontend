@@ -1,7 +1,7 @@
 'use client';
 
 import { Dispatch, SetStateAction, ElementType } from 'react';
-import { MessageSquare, UserPlus, Users, Target, DollarSign, TrendingUp, CalendarCheck, CheckCircle2, Flag } from 'lucide-react';
+import { MessageSquare, UserPlus, Users, DollarSign, TrendingUp, CalendarCheck, CheckCircle2, Flag } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { IEmployee, NavSection } from '../types';
 
@@ -31,10 +31,6 @@ export function CompanyOverviewSection({
   setActiveSection: Dispatch<SetStateAction<NavSection>>;
   onAddEmployee: () => void;
 }) {
-  const totalTarget = employees.reduce((sum, employee) => sum + employee.salesTarget.monthlyTarget, 0);
-  const achieved = employees.reduce((sum, employee) => sum + employee.salesTarget.monthlyAchieved, 0);
-  const percent = totalTarget ? Math.round((achieved / totalTarget) * 100) : 0;
-
   const salesEmployees = employees.filter((employee) => employee.role === 'SALES');
   const chartData = [...salesEmployees]
     .sort((left, right) => right.salesTarget.monthlyAchieved - left.salesTarget.monthlyAchieved)
@@ -92,10 +88,9 @@ export function CompanyOverviewSection({
       </header>
 
       {/* METRICS */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         <Metric label="Employees" value={stats.totalEmployees ?? 0} icon={Users} />
-        <Metric label="Total sales achieved" value={`$${Number(stats.totalRevenue ?? 0).toLocaleString()}`} icon={DollarSign} />
-        <Metric label="Target completion" value={`${percent}%`} icon={Target} />
+        <Metric label="Current month sales" value={`$${Number(stats.totalRevenue ?? 0).toLocaleString()}`} icon={DollarSign} />
       </div>
 
       {attendanceSummary && (
@@ -164,6 +159,17 @@ export function CompanyOverviewSection({
                 <Bar dataKey="target" fill="#334155" radius={[4, 4, 0, 0]} name="Target" />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+          <div className="mt-4 max-h-52 space-y-2 overflow-y-auto pr-1">
+            {salesEmployees.slice(0, 10).map((employee) => (
+              <div key={employee.id} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium text-white">{employee.name}</p>
+                  <p className="text-xs text-slate-400">Current month sales</p>
+                </div>
+                <span className="text-sm font-semibold text-emerald-400">${Number(employee.salesTarget.monthlyAchieved || 0).toLocaleString()}</span>
+              </div>
+            ))}
           </div>
         </section>
 

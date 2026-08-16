@@ -89,6 +89,7 @@ export interface ICompanyDashboard {
     myFailedSales: number;
     myConnectedLeads: number;
     myPendingLeads: number;
+    monthlySalesAchieved?: number;
     todayReport?: {
       businessDate: { start: string; end: string };
       leads: number;
@@ -295,6 +296,7 @@ export interface ICompanySale {
   paymentMethod: 'Card' | 'Check' | 'Wire Transfer' | 'Cash' | 'UPI' | 'Bank Transfer' | 'Online' | 'Other';
   saleDate: string;
   businessDate?: string;
+  createdAt?: string;
   failed?: boolean;
   failedReason?: string;
   failedAt?: string | null;
@@ -310,6 +312,7 @@ export interface ICompanySale {
   verificationFailedBy?: string;
   verificationFailedByName?: string;
   verificationFailedAt?: string;
+  verificationPendingReason?: string;
   feedbackStatus?: 'PENDING' | 'COMPLETED';
   feedbackRating?: 'Positive' | 'Neutral' | 'Negative';
   feedbackNotes?: string;
@@ -317,6 +320,7 @@ export interface ICompanySale {
   feedbackByName?: string;
   feedbackAt?: string;
   feedbackBusinessDate?: string;
+  feedbackPendingReason?: string;
   salesEmployeeRemark?: string;
 }
 
@@ -483,9 +487,9 @@ export const companyService = {
   updateVerification: async (id: string, payload: Partial<ICompanySale>): Promise<ICompanySale> => (await api.patch(`/company/verification/${id}`, payload)).data.data,
   deleteVerification: async (id: string): Promise<{ id: string }> => (await api.delete(`/company/verification/${id}`)).data.data,
   startVerification: async (id: string): Promise<ICompanySale> => (await api.post(`/company/verification/${id}/start`)).data.data,
-  completeVerification: async (id: string, payload: { status: 'SUCCESSFUL' | 'FAILED'; notes?: string; failedReason?: string }): Promise<ICompanySale> => (await api.post(`/company/verification/${id}/complete`, payload)).data.data,
+  completeVerification: async (id: string, payload: { status: 'SUCCESSFUL' | 'FAILED' | 'PENDING'; notes?: string; failedReason?: string; pendingReason?: string }): Promise<ICompanySale> => (await api.post(`/company/verification/${id}/complete`, payload)).data.data,
   getFeedbacks: async (params: { status?: string } = {}): Promise<ICompanySale[]> => (await api.get('/company/feedback', { params })).data.data,
-  completeFeedback: async (id: string, payload: { rating: 'Positive' | 'Neutral' | 'Negative'; notes?: string }): Promise<ICompanySale> => (await api.post(`/company/feedback/${id}/complete`, payload)).data.data,
+  completeFeedback: async (id: string, payload: { rating?: 'Positive' | 'Neutral' | 'Negative'; notes?: string; status?: 'COMPLETED' | 'PENDING'; pendingReason?: string }): Promise<ICompanySale> => (await api.post(`/company/feedback/${id}/complete`, payload)).data.data,
   getRemoteSupport: async (filters: Record<string, any> = {}): Promise<IRemoteSupportRecord[]> => (await api.get('/company/remote-support', { params: filters })).data.data,
   createRemoteSupport: async (data: Partial<IRemoteSupportRecord>) => (await api.post('/company/remote-support', data)).data.data,
   acceptRemoteSupport: async (id: string) => (await api.post(`/company/remote-support/${id}/accept`)).data.data,

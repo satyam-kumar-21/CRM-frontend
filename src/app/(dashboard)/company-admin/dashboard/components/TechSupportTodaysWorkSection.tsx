@@ -109,12 +109,21 @@ export function TechSupportTodaysWorkSection() {
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-bold text-white">{ticket.customerName}</h3>
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${isInProgress ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' : 'bg-amber-500/20 text-amber-300 border-amber-500/30'}`}>{isPending ? 'PENDING' : 'IN PROGRESS'}</span>
+                    {(ticket.otherDetails || '').toLowerCase().includes('upgrade') && (
+                      <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-cyan-300">Upgrade Customer</span>
+                    )}
                   </div>
                   <div className="mt-1 flex flex-wrap gap-3 text-xs text-slate-400">
                     {ticket.customerContact && <span className="flex items-center gap-1 text-emerald-400 font-semibold"><Phone className="h-3.5 w-3.5" /> {ticket.customerContact}</span>}
                     {ticket.system && <span className="flex items-center gap-1"><Monitor className="h-3.5 w-3.5 text-slate-500" /> {ticket.system}</span>}
                     {ticket.salesEmployeeName && <span className="flex items-center gap-1"><User className="h-3.5 w-3.5 text-slate-500" /> Sales: {ticket.salesEmployeeName}</span>}
                   </div>
+                  {ticket.otherDetails && (
+                    <p className="mt-2 text-xs text-cyan-200 bg-cyan-500/5 rounded-lg p-2.5 border border-cyan-500/20">
+                      <span className="font-semibold text-cyan-300">Upgrade / Sales Message: </span>
+                      {ticket.otherDetails}
+                    </p>
+                  )}
                   {ticket.issueReason && <p className="mt-2 text-xs text-slate-400 bg-slate-950/60 rounded-lg p-2.5 border border-slate-800"><span className="font-semibold text-slate-300">Issue: </span>{ticket.issueReason}</p>}
                 </div>
                 <div className="flex flex-col gap-2">

@@ -1,9 +1,10 @@
 'use client';
 
-import { Dispatch, SetStateAction } from 'react';
+import { Dispatch, SetStateAction, useEffect, useState } from 'react';
 import {
   ArrowRight,
   CalendarCheck,
+  Flag,
   MessageSquare,
   Target,
   TrendingUp,
@@ -44,6 +45,65 @@ export function EmployeeOverviewSection({
   setActiveSection: Dispatch<SetStateAction<NavSection>>;
 }) {
   const isTechSupport = employee.role === 'TECH_SUPPORT';
+  const isVerification = employee.role === 'VERIFICATION';
+  const [verificationMonthStats, setVerificationMonthStats] = useState({ successful: 0, failed: 0, feedbackCompleted: 0 });
+
+  useEffect(() => {
+    if (!isVerification) return;
+
+    let active = true;
+    const loadMetricStats = async () => {
+      try {
+        const { companyService } = await import('@/services/companyService');
+        const [verificationRecords, feedbackRecords] = await Promise.all([
+          companyService.getVerifications(),
+          companyService.getFeedbacks(),
+        ]);
+
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+
+        const successfulThisMonth = verificationRecords.filter((record) => {
+          const created = record.createdAt ? new Date(record.createdAt) : null;
+          return record.verificationEmployeeId === employee._id
+            && record.verificationStatus === 'SUCCESSFUL'
+            && created
+            && created.getFullYear() === currentYear
+            && created.getMonth() === currentMonth;
+        }).length;
+
+        const failedThisMonth = verificationRecords.filter((record) => {
+          const created = record.createdAt ? new Date(record.createdAt) : null;
+          return record.verificationEmployeeId === employee._id
+            && record.verificationStatus === 'FAILED'
+            && created
+            && created.getFullYear() === currentYear
+            && created.getMonth() === currentMonth;
+        }).length;
+
+        const feedbackCompletedThisMonth = feedbackRecords.filter((record) => {
+          const created = record.feedbackAt ? new Date(record.feedbackAt) : null;
+          return (record.feedbackBy === employee._id || record.feedbackByName === employee.name)
+            && record.feedbackStatus === 'COMPLETED'
+            && created
+            && created.getFullYear() === currentYear
+            && created.getMonth() === currentMonth;
+        }).length;
+
+        if (active) {
+          setVerificationMonthStats({ successful: successfulThisMonth, failed: failedThisMonth, feedbackCompleted: feedbackCompletedThisMonth });
+        }
+      } catch {
+        if (active) {
+          setVerificationMonthStats({ successful: 0, failed: 0, feedbackCompleted: 0 });
+        }
+      }
+    };
+
+    void loadMetricStats();
+    return () => { active = false; };
+  }, [employee._id, employee.name, isVerification]);
 
   // For TECH_SUPPORT: target = remoteTarget, achieved = successful remotes
   const remoteTarget = employee.remoteTarget || 0;
@@ -59,6 +119,7 @@ export function EmployeeOverviewSection({
   const salesProgress = salesTarget ? Math.min(100, Math.round((salesAchieved / salesTarget) * 100)) : 0;
 
   const target = isTechSupport ? remoteTarget : (salesTarget || employee.remoteTarget || 0);
+  const currentAmount = isTechSupport ? remoteSuccessful : salesAchieved;
   const progress = isTechSupport ? remoteProgress : salesProgress;
 
   // Calculate stroke offset for the circular progress (radius 28)
@@ -95,154 +156,156 @@ export function EmployeeOverviewSection({
       </header>
 
       {/* METRICS */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {employee.role === 'SALES' ? (
-          <>
-            <Metric icon={TrendingUp} label="Revenue" value={`$${Number(stats.myRevenue ?? 0).toLocaleString()}`} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" />
-            <Metric icon={Target} label="Target" value={`$${target.toLocaleString()}`} />
-            <Metric icon={Users} label="Leads" value={stats.myLeads ?? 0} />
-            <Metric icon={UserPlus} label="Sales" value={stats.mySales ?? 0} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" />
-          </>
-        ) : employee.role === 'TECH_SUPPORT' ? (
-          <>
-            <Metric icon={LifeBuoy} label="Total Remotes" value={remoteTotal} />
-            <Metric icon={ShieldCheck} label="Successful" value={remoteSuccessful} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" />
-            <Metric icon={Target} label="Failed" value={remoteFailed} iconColor="text-rose-400" iconBg="bg-rose-500/10" />
-            <Metric icon={TrendingUp} label="Success Rate" value={`${remoteSupportSummary?.successRate ?? 0}%`} iconColor="text-cyan-400" iconBg="bg-cyan-500/10" />
-          </>
-        ) : employee.role === 'IT' ? (
-          <>
-            <Metric icon={Layers} label="Active projects" value={projectSummary?.active ?? 0} />
-            <Metric icon={TrendingUp} label="Completed" value={projectSummary?.completed ?? 0} />
-            <Metric icon={CalendarCheck} label="Pending" value={projectSummary?.pending ?? 0} />
-            <Metric icon={Users} label="Teams" value={stats.totalEmployees ?? 0} />
-          </>
-        ) : employee.role === 'MANAGER' || employee.role === 'TEAM_LEAD' ? (
-          <>
-            <Metric icon={Users} label="Team members" value={stats.totalEmployees ?? 0} />
-            <Metric icon={TrendingUp} label="Team sales" value={`$${Number(stats.myRevenue ?? 0).toLocaleString()}`} />
-            <Metric icon={Layers} label="Active projects" value={projectSummary?.active ?? 0} />
-            <Metric icon={UserPlus} label="Leads" value={stats.myLeads ?? 0} />
-          </>
-        ) : (
-          <>
-            <Metric icon={TrendingUp} label="Revenue" value={`$${Number(stats.myRevenue ?? 0).toLocaleString()}`} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" />
-            <Metric icon={Users} label="Groups" value={stats.activeGroups ?? 0} />
-            <Metric icon={CalendarCheck} label="Attendance" value={stats.totalEmployees ?? 0} />
-            <Metric icon={MessageSquare} label="Messages" value={stats.recentMessages ?? 0} />
-          </>
-        )}
-      </div>
+      {employee.role === 'VERIFICATION' ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <Metric icon={Users} label="Groups" value={stats.activeGroups ?? 0} />
+          <Metric icon={CalendarCheck} label="Attendance" value={stats.totalEmployees ?? 0} />
+          <Metric icon={ShieldCheck} label="Verifications this month" value={verificationMonthStats.successful} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" />
+          <Metric icon={MessageSquare} label="Feedback this month" value={verificationMonthStats.feedbackCompleted} iconColor="text-violet-400" iconBg="bg-violet-500/10" />
+          <Metric icon={Flag} label="Failed" value={verificationMonthStats.failed} iconColor="text-rose-400" iconBg="bg-rose-500/10" />
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {employee.role === 'SALES' ? (
+            <>
+              <Metric icon={TrendingUp} label="Revenue" value={`$${Number(stats.myRevenue ?? 0).toLocaleString()}`} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" />
+              <Metric icon={Target} label="Target" value={`$${target.toLocaleString()}`} />
+              <Metric icon={Users} label="Leads" value={stats.myLeads ?? 0} />
+              <Metric icon={UserPlus} label="Sales" value={stats.mySales ?? 0} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" />
+            </>
+          ) : employee.role === 'TECH_SUPPORT' ? (
+            <>
+              <Metric icon={LifeBuoy} label="Total Remotes" value={remoteTotal} />
+              <Metric icon={ShieldCheck} label="Successful" value={remoteSuccessful} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" />
+              <Metric icon={Target} label="Failed" value={remoteFailed} iconColor="text-rose-400" iconBg="bg-rose-500/10" />
+              <Metric icon={TrendingUp} label="Success Rate" value={`${remoteSupportSummary?.successRate ?? 0}%`} iconColor="text-cyan-400" iconBg="bg-cyan-500/10" />
+            </>
+          ) : employee.role === 'IT' ? (
+            <>
+              <Metric icon={Layers} label="Active projects" value={projectSummary?.active ?? 0} />
+              <Metric icon={TrendingUp} label="Completed" value={projectSummary?.completed ?? 0} />
+              <Metric icon={CalendarCheck} label="Pending" value={projectSummary?.pending ?? 0} />
+              <Metric icon={Users} label="Teams" value={stats.totalEmployees ?? 0} />
+            </>
+          ) : employee.role === 'MANAGER' || employee.role === 'TEAM_LEAD' ? (
+            <>
+              <Metric icon={Users} label="Team members" value={stats.totalEmployees ?? 0} />
+              <Metric icon={TrendingUp} label="Team sales" value={`$${Number(stats.myRevenue ?? 0).toLocaleString()}`} />
+              <Metric icon={Layers} label="Active projects" value={projectSummary?.active ?? 0} />
+              <Metric icon={UserPlus} label="Leads" value={stats.myLeads ?? 0} />
+            </>
+          ) : (
+            <>
+              <Metric icon={TrendingUp} label="Revenue" value={`$${Number(stats.myRevenue ?? 0).toLocaleString()}`} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" />
+              <Metric icon={Users} label="Groups" value={stats.activeGroups ?? 0} />
+              <Metric icon={CalendarCheck} label="Attendance" value={stats.totalEmployees ?? 0} />
+              <Metric icon={MessageSquare} label="Messages" value={stats.recentMessages ?? 0} />
+            </>
+          )}
+        </div>
+      )}
 
-      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-        
-        {/* PROGRESS SECTION */}
-        <section className="flex flex-col justify-between rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-sm">
-          <div>
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  {isTechSupport ? 'Remote target progress' : 'Monthly progress'}
-                </p>
-                <p className="mt-2 text-4xl font-bold text-white">{progress}%</p>
-                {isTechSupport && (
-                  <p className="mt-1 text-sm text-slate-400">
-                    <span className="font-semibold text-emerald-400">{remoteSuccessful}</span> of <span className="font-semibold text-white">{remoteTarget}</span> target remotes completed
+      {!isVerification && (
+        <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+          <section className="flex flex-col justify-between rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-sm">
+            <div>
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    {isTechSupport ? 'Remote target progress' : 'Monthly progress'}
                   </p>
-                )}
+                  <p className="mt-2 text-4xl font-bold text-white">{progress}%</p>
+                  {isTechSupport && (
+                    <p className="mt-1 text-sm text-slate-400">
+                      <span className="font-semibold text-emerald-400">{remoteSuccessful}</span> of <span className="font-semibold text-white">{remoteTarget}</span> target remotes completed
+                    </p>
+                  )}
+                </div>
+                <div className="relative h-16 w-16">
+                  <svg className="h-full w-full -rotate-90 transform" viewBox="0 0 64 64">
+                    <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="none" className="text-slate-800" />
+                    <circle
+                      cx="32" cy="32" r="28"
+                      stroke="currentColor" strokeWidth="6" fill="none"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={strokeDashoffset}
+                      strokeLinecap="round"
+                      className={`transition-all duration-1000 ease-out ${isTechSupport ? 'text-cyan-500' : 'text-indigo-500'}`}
+                    />
+                  </svg>
+                </div>
               </div>
-              
-              {/* Dynamic SVG Circular Progress */}
-              <div className="relative h-16 w-16">
-                <svg className="h-full w-full -rotate-90 transform" viewBox="0 0 64 64">
-                  <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="none" className="text-slate-800" />
-                  <circle
-                    cx="32" cy="32" r="28"
-                    stroke="currentColor" strokeWidth="6" fill="none"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={strokeDashoffset}
-                    strokeLinecap="round"
-                    className={`transition-all duration-1000 ease-out ${isTechSupport ? 'text-cyan-500' : 'text-indigo-500'}`}
-                  />
-                </svg>
-              </div>
+
+              {isTechSupport ? (
+                <div className="mt-6 space-y-3">
+                  <div>
+                    <div className="mb-1 flex items-center justify-between text-xs text-slate-400">
+                      <span className="font-semibold text-emerald-400">✓ Successful</span>
+                      <span className="font-semibold text-white">{remoteSuccessful}</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                      <div className="h-full rounded-full bg-emerald-500 transition-all duration-1000" style={{ width: remoteTotal ? `${Math.round((remoteSuccessful / remoteTotal) * 100)}%` : '0%' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-1 flex items-center justify-between text-xs text-slate-400">
+                      <span className="font-semibold text-rose-400">✗ Failed</span>
+                      <span className="font-semibold text-white">{remoteFailed}</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                      <div className="h-full rounded-full bg-rose-500 transition-all duration-1000" style={{ width: remoteTotal ? `${Math.round((remoteFailed / remoteTotal) * 100)}%` : '0%' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-1 flex items-center justify-between text-xs text-slate-400">
+                      <span className="font-semibold text-amber-400">⏳ Pending / In Progress</span>
+                      <span className="font-semibold text-white">{remotePending}</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                      <div className="h-full rounded-full bg-amber-500 transition-all duration-1000" style={{ width: remoteTotal ? `${Math.round((remotePending / remoteTotal) * 100)}%` : '0%' }} />
+                    </div>
+                  </div>
+                  <div className="mt-2 border-t border-slate-800 pt-2">
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span>Target</span>
+                      <span className="font-semibold text-white">{remoteTarget} remotes</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-8">
+                  <div className="mb-2 flex items-center justify-between gap-3 text-xs text-slate-400">
+                    <span className="font-medium text-slate-200">${currentAmount.toLocaleString()}</span>
+                    <span>Target: ${target.toLocaleString()}</span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
+                    <div className="h-full rounded-full bg-indigo-500 transition-all duration-1000 ease-out" style={{ width: `${progress}%` }} />
+                  </div>
+                </div>
+              )}
             </div>
 
-            {isTechSupport ? (
-              /* Tech Support: show remote breakdown bars */
-              <div className="mt-6 space-y-3">
-                <div>
-                  <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-                    <span className="text-emerald-400 font-semibold">✓ Successful</span>
-                    <span className="font-semibold text-white">{remoteSuccessful}</span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
-                    <div className="h-full rounded-full bg-emerald-500 transition-all duration-1000" style={{ width: remoteTotal ? `${Math.round((remoteSuccessful/remoteTotal)*100)}%` : '0%' }} />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-                    <span className="text-rose-400 font-semibold">✗ Failed</span>
-                    <span className="font-semibold text-white">{remoteFailed}</span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
-                    <div className="h-full rounded-full bg-rose-500 transition-all duration-1000" style={{ width: remoteTotal ? `${Math.round((remoteFailed/remoteTotal)*100)}%` : '0%' }} />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-                    <span className="text-amber-400 font-semibold">⏳ Pending / In Progress</span>
-                    <span className="font-semibold text-white">{remotePending}</span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
-                    <div className="h-full rounded-full bg-amber-500 transition-all duration-1000" style={{ width: remoteTotal ? `${Math.round((remotePending/remoteTotal)*100)}%` : '0%' }} />
-                  </div>
-                </div>
-                <div className="mt-2 border-t border-slate-800 pt-2">
-                  <div className="flex items-center justify-between text-xs text-slate-400">
-                    <span>Target</span>
-                    <span className="font-semibold text-white">{remoteTarget} remotes</span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              /* Sales / general: show $ progress bar */
-              <div className="mt-8">
-                <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                  <span>$0</span>
-                  <span>${target.toLocaleString()}</span>
-                </div>
-                <div className="h-2 w-full rounded-full bg-slate-800 overflow-hidden">
-                  <div className="h-full rounded-full bg-indigo-500 transition-all duration-1000 ease-out" style={{ width: `${progress}%` }} />
-                </div>
-              </div>
-            )}
-          </div>
-          
-          <div className="mt-6 border-t border-slate-800 pt-4">
-            <p className="text-sm font-medium text-slate-300">
-              {employee.role}
-              <span className="mx-2 text-slate-600">•</span>
-              <span className="text-slate-400">{employee.email || 'No email recorded'}</span>
-            </p>
-          </div>
-        </section>
+            <div className="mt-6 border-t border-slate-800 pt-4">
+              <p className="text-sm font-medium text-slate-300">
+                {employee.role}
+                <span className="mx-2 text-slate-600">•</span>
+                <span className="text-slate-400">{employee.email || 'No email recorded'}</span>
+              </p>
+            </div>
+          </section>
 
-        {/* QUICK ACTIONS SECTION */}
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Quick actions
-          </p>
-          <div className="mt-5 grid gap-3">
-            <QuickAction label="Workspace chat" icon={MessageSquare} onClick={() => setActiveSection('chat')} />
-            {employee.role === 'SALES' && <QuickAction label="My leads" icon={UserPlus} onClick={() => setActiveSection('leads')} />}
-            {(employee.role === 'SALES' || employee.role === 'TECH_SUPPORT') && <QuickAction label="Remote support" icon={LifeBuoy} onClick={() => setActiveSection('remote-support')} />}
-            {(employee.role === 'IT' || employee.role === 'MANAGER' || employee.role === 'TEAM_LEAD') && <QuickAction label="Projects" icon={Layers} onClick={() => setActiveSection('projects')} />}
-            <QuickAction label="Announcements" icon={CalendarCheck} onClick={() => setActiveSection('announcements')} />
-          </div>
-        </section>
-        
-      </div>
+          <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Quick actions</p>
+            <div className="mt-5 grid gap-3">
+              <QuickAction label="Workspace chat" icon={MessageSquare} onClick={() => setActiveSection('chat')} />
+              {employee.role === 'SALES' && <QuickAction label="My leads" icon={UserPlus} onClick={() => setActiveSection('leads')} />}
+              {(employee.role === 'SALES' || employee.role === 'TECH_SUPPORT') && <QuickAction label="Remote support" icon={LifeBuoy} onClick={() => setActiveSection('remote-support')} />}
+              {(employee.role === 'IT' || employee.role === 'MANAGER' || employee.role === 'TEAM_LEAD') && <QuickAction label="Projects" icon={Layers} onClick={() => setActiveSection('projects')} />}
+              <QuickAction label="Announcements" icon={CalendarCheck} onClick={() => setActiveSection('announcements')} />
+            </div>
+          </section>
+        </div>
+      )}
 
       {(employee.role === 'TECH_SUPPORT' || employee.role === 'SALES') && remoteSupportSummary ? (
         <section className="grid gap-4 lg:grid-cols-3">
