@@ -390,24 +390,43 @@ export interface IAnnouncement { _id: string; title: string; content: string; cr
 export interface INotification { _id: string; title: string; message: string; isRead: boolean; link?: string; createdAt: string; }
 export interface ILeaveRecord { _id: string; employeeId: { name: string; employeeId: string; role: string } | string; leaveType: string; startDate: string; endDate: string; reason: string; status: string; approvedByName?: string; rejectedByName?: string; rejectReason?: string; }
 
+export interface ILoginConfig {
+  companyName: string;
+  employeeLoginEnabled: boolean;
+  employeeOtpEnabled: boolean;
+}
+
 export const companyService = {
+  getLoginConfig: async (): Promise<ILoginConfig> => {
+    const res = await api.get('/company/login-config');
+    return res.data?.data || res.data;
+  },
+
   login: async (credentials: { employeeId?: string; email?: string; password: string }) => {
     const res = await api.post('/company/login', credentials);
-    const accessToken = res.data?.data?.accessToken || res.data?.accessToken;
-    const theme = res.data?.data?.employee?.theme || res.data?.employee?.theme || 'blue';
+    const data = res.data?.data || res.data;
+    if (data?.otpRequired) {
+      return { otpRequired: true as const, otpToken: data.otpToken, maskedEmail: data.maskedEmail, role: data.role };
+    }
+    const accessToken = data?.accessToken;
+    const theme = data?.employee?.theme || 'blue';
     if (typeof window !== 'undefined' && accessToken) {
       window.localStorage.setItem('companyAccessToken', accessToken);
       window.localStorage.setItem('crm-user-theme', theme);
     }
-    return res.data;
+    return { otpRequired: false as const, ...data };
   },
 
-  // Employee Login (use same /company/login endpoint)
-  employeeLogin: async (credentials: IEmployeeLoginPayload) => {
-    const res = await api.post('/company/login', credentials);
-    const accessToken = res.data?.data?.accessToken || res.data?.accessToken;
-    if (typeof window !== 'undefined' && accessToken) window.localStorage.setItem('companyAccessToken', accessToken);
-    return res.data;
+  verifyLoginOtp: async (payload: { otpToken: string; otp: string }) => {
+    const res = await api.post('/company/login/verify-otp', payload);
+    const data = res.data?.data || res.data;
+    const accessToken = data?.accessToken;
+    const theme = data?.employee?.theme || 'blue';
+    if (typeof window !== 'undefined' && accessToken) {
+      window.localStorage.setItem('companyAccessToken', accessToken);
+      window.localStorage.setItem('crm-user-theme', theme);
+    }
+    return data;
   },
 
   getEmployees: async (): Promise<ICompanyEmployee[]> => {

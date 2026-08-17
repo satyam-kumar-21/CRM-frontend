@@ -10,6 +10,7 @@ export function SettingsSection() {
 	const [settings, setSettings] = useState<any>({});
 	const [companyName, setCompanyName] = useState('');
 	const [employeeLoginEnabled, setEmployeeLoginEnabled] = useState(true);
+	const [employeeOtpEnabled, setEmployeeOtpEnabled] = useState(false);
 	const [routePermissions, setRoutePermissions] = useState<Record<string, boolean>>({});
 	const [holidays, setHolidays] = useState<any[]>([]);
 	const [newHolidayName, setNewHolidayName] = useState('');
@@ -24,6 +25,7 @@ export function SettingsSection() {
 			setSettings(s);
 			setCompanyName(s.companyName || data.name || '');
 			setEmployeeLoginEnabled(s.employeeLoginEnabled !== false);
+			setEmployeeOtpEnabled(s.employeeOtpEnabled === true);
 			setRoutePermissions(s.routePermissions || {});
 			setHolidays(s.holidays || []);
 		} catch (err) {
@@ -35,7 +37,7 @@ export function SettingsSection() {
 
 	const handleSave = async () => {
 		try {
-			const payload: any = { companyName, employeeLoginEnabled, routePermissions, holidays };
+			const payload: any = { companyName, employeeLoginEnabled, employeeOtpEnabled, routePermissions, holidays };
 			await companyService.updateSettings(payload);
 			toast.success('Settings saved');
 		} catch (err: any) {
@@ -53,6 +55,18 @@ export function SettingsSection() {
 		} catch (err: any) {
 			setEmployeeLoginEnabled(!newVal);
 			toast.error(err?.response?.data?.message || 'Unable to update employee login');
+		}
+	};
+
+	const toggleEmployeeOtp = async () => {
+		const newVal = !employeeOtpEnabled;
+		setEmployeeOtpEnabled(newVal);
+		try {
+			await companyService.updateSettings({ employeeOtpEnabled: newVal });
+			toast.success(`Employee OTP login ${newVal ? 'enabled' : 'disabled'}`);
+		} catch (err: any) {
+			setEmployeeOtpEnabled(!newVal);
+			toast.error(err?.response?.data?.message || 'Unable to update employee OTP setting');
 		}
 	};
 
@@ -120,6 +134,20 @@ export function SettingsSection() {
 										<span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-200 ${employeeLoginEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
 									</button>
 								</div>
+						</div>
+						<div>
+							<label className="block text-slate-400 mb-1">Employee OTP Login</label>
+							<div className="flex items-center gap-3">
+								<button
+									onClick={() => void toggleEmployeeOtp()}
+									role="switch"
+									aria-checked={employeeOtpEnabled}
+									aria-label={employeeOtpEnabled ? 'Employee OTP enabled' : 'Employee OTP disabled'}
+									className={`relative inline-flex items-center h-6 w-12 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${employeeOtpEnabled ? 'bg-emerald-600' : 'bg-slate-800'}`}>
+										<span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-200 ${employeeOtpEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+									</button>
+								</div>
+							<p className="text-[11px] text-slate-500 mt-1">When ON, employees need email OTP after password. Admin always requires OTP.</p>
 						</div>
 					</div>
 				</div>
