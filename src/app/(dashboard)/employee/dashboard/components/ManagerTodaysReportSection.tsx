@@ -58,6 +58,7 @@ export default function ManagerTodaysReportSection({ report, employees }: Props)
 
   const totalSalesTeamEmployees = salesEmployees.length;
   const totalTechSupportEmployees = techSupportEmployees.length;
+  const formatMoney = (value: number) => `$${Number(value || 0).toLocaleString()}`;
 
   return (
     <section className="min-h-full space-y-6 overflow-y-auto bg-slate-950 p-6 text-slate-100 lg:p-8">
@@ -67,9 +68,10 @@ export default function ManagerTodaysReportSection({ report, employees }: Props)
         <p className="mt-2 text-sm text-slate-400">Business day: <span className="font-semibold text-slate-200">{businessDateLabel}</span></p>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Metric label="Total Leads" value={todayReport?.leads ?? 0} icon={UserPlus} />
         <Metric label="Total Sales" value={todayReport?.salesCount ?? 0} icon={TrendingUp} />
+        <Metric label="Sales Amount" value={formatMoney(Number(todayReport?.salesAmount || 0))} icon={DollarSign} />
         <Metric label="Total Failed Sales" value={todayReport?.failedSales ?? 0} icon={Flag} />
       </div>
 

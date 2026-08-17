@@ -269,6 +269,7 @@ export interface ICompanySale {
   _id: string;
   leadId?: string;
   customerId?: string;
+  saleStatus?: 'PENDING' | 'CHARGED' | 'DROPPED';
   name: string;
   customerEmail?: string;
   alternateContactNo?: string;
@@ -366,6 +367,16 @@ export interface IUpgradeRecord {
   createdAt?: string;
 }
 
+export interface IAttendanceSummary {
+  totalWorkingDays: number;
+  totalPresent: number;
+  totalAbsent: number;
+  totalHoliday: number;
+  totalEmployees: number;
+  from?: string;
+  to?: string;
+}
+export type IAttendanceResponse = IAttendanceRecord[] | { summary?: IAttendanceSummary; records?: IAttendanceRecord[] };
 export interface IAttendanceRecord {
   _id: string;
   employeeId: { _id: string; name: string; employeeId: string; role: string } | string;
@@ -478,6 +489,7 @@ export const companyService = {
   updateLead: async (id: string, data: Partial<ICompanyLead>): Promise<ICompanyLead> => (await api.patch(`/company/leads/${id}`, data)).data.data,
   deleteLead: async (id: string) => (await api.delete(`/company/leads/${id}`)).data.data,
   getSales: async (): Promise<ICompanySale[]> => (await api.get('/company/sales', { params: { failed: false, t: Date.now() }, headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache', Expires: '0' } })).data.data,
+  getPendingSales: async (): Promise<ICompanySale[]> => (await api.get('/company/sales', { params: { pending: true, t: Date.now() }, headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache', Expires: '0' } })).data.data,
   getFailedSales: async (): Promise<ICompanySale[]> => (await api.get('/company/sales', { params: { failed: true, t: Date.now() }, headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache', Expires: '0' } })).data.data,
   searchCustomers: async (query: string): Promise<ICustomerSearchResult[]> => (await api.get('/company/sales/customers/search', { params: { q: query } })).data.data,
   createUpgrade: async (payload: Partial<ICustomerSearchResult> & { customerId?: string; customerName?: string; customerEmail?: string; mobile?: string; country?: string; system?: string; upgradeAmount?: number; salesTaxType?: 'PERCENTAGE' | 'DIRECT_AMOUNT'; salesTaxValue?: number; salesTaxAmount?: number; finalAmount?: number; paymentMethod?: ICompanySale['paymentMethod']; salesEmployeeRemark?: string; needsTechSupport?: 'yes' | 'no'; }): Promise<IUpgradeRecord> => (await api.post('/company/sales/upgrades', payload)).data.data,
@@ -503,9 +515,9 @@ export const companyService = {
   updateProject: async (id: string, data: Partial<IProjectRecord>) => (await api.patch(`/company/projects/${id}`, data)).data.data,
   createSale: async (data: Omit<ICompanySale, '_id'>): Promise<ICompanySale> => (await api.post('/company/sales', data)).data.data,
   updateSale: async (id: string, data: Omit<ICompanySale, '_id'>): Promise<ICompanySale> => (await api.patch(`/company/sales/${id}`, data)).data.data,
-  markSaleFailed: async (id: string, failedReason: string) => (await api.patch(`/company/sales/${id}/failed`, { failed: true, failedReason })).data.data,
+  markSaleFailed: async (id: string, failedReason: string, saleStatus: 'PENDING' | 'CHARGED' | 'DROPPED' = 'DROPPED') => (await api.patch(`/company/sales/${id}/failed`, { failed: saleStatus === 'DROPPED', saleStatus, failedReason })).data.data,
   deleteSale: async (id: string) => (await api.delete(`/company/sales/${id}`)).data.data,
-  getAttendance: async (filters: { employeeId?: string; from?: string; to?: string } = {}): Promise<IAttendanceRecord[]> => (await api.get('/company/attendance', { params: filters })).data.data,
+  getAttendance: async (filters: { employeeId?: string; from?: string; to?: string } = {}): Promise<IAttendanceResponse> => (await api.get('/company/attendance', { params: filters })).data.data,
   getAttendanceEmployees: async (): Promise<Array<{ _id: string; name: string; employeeId: string; role: string }>> => (await api.get('/company/attendance/employees')).data.data,
   getAnnouncements: async (): Promise<IAnnouncement[]> => (await api.get('/company/announcements')).data.data,
   createAnnouncement: async (data: { title: string; content: string; targetRoles?: string[] }): Promise<IAnnouncement> => (await api.post('/company/announcements', data)).data.data,

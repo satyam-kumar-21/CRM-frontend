@@ -105,6 +105,7 @@ export default function CompanyAdminDashboardPage() {
     { id: 'groups', label: 'Channels & Groups', icon: Hash, count: groupsList.length },
     { id: 'leads', label: 'Leads', icon: UserPlus },
     { id: 'sales', label: 'Sales', icon: TrendingUp },
+    { id: 'todays-work', label: "Today's Work", icon: CalendarCheck },
     { id: 'upgrade', label: 'Upgrade', icon: TrendingUp },
     { id: 'failed-sales', label: 'Failed Sales', icon: Flag },
     { id: 'remote-support', label: 'Remote Support', icon: UserPlus },
@@ -263,6 +264,7 @@ export default function CompanyAdminDashboardPage() {
     {activeSection === 'todays-report' && <TodaysReportSection report={dashboard?.stats?.todayReport} />}
     {activeSection === 'employees' && <EmployeesSection employees={employeesList} filteredEmployees={filteredEmployees} searchQuery={searchQuery} setSearchQuery={setSearchQuery} employeeRoleFilter={employeeRoleFilter} setEmployeeRoleFilter={setEmployeeRoleFilter} onSelectEmployee={setSelectedEmployeeForDetails} onAddEmployee={handleOpenNewEmployeeModal} onEditEmployee={handleEditEmployee} onToggleBlock={handleToggleEmployeeBlock} onDeleteEmployee={handleDeleteEmployee} />}
     {activeSection === 'sales' && <AdminSalesSection />}
+    {activeSection === 'todays-work' && <AdminSalesSection />}
     {activeSection === 'upgrade' && <UpgradeSection />}
     {activeSection === 'failed-sales' && <FailedSalesSection />}
     {activeSection === 'remote-support' && <RemoteSupportSection role={dashboard?.employee?.role} isAdmin />}

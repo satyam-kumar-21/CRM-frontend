@@ -20,22 +20,23 @@ export default function ManagerOverviewSection({ report }: Props) {
   const failedByEmployee = new Map<string, number>();
 
   (todayReport.lists?.leads || []).forEach((lead: any) => {
-    const owner = lead.connectedBy?.trim() || 'Unassigned';
+    const owner = lead.connectedBy?.trim() || lead.assignedTo?.trim() || 'Unassigned';
     leadsByEmployee.set(owner, (leadsByEmployee.get(owner) || 0) + 1);
   });
 
   (todayReport.lists?.sales || []).forEach((sale: any) => {
-    const owner = sale.connectedBy?.trim() || 'Unassigned';
+    const owner = sale.connectedBy?.trim() || sale.assignedTo?.trim() || 'Unassigned';
     const previous = salesByEmployee.get(owner) || { count: 0, amount: 0 };
     salesByEmployee.set(owner, { count: previous.count + 1, amount: previous.amount + Number(sale.amount || 0) });
   });
 
   (todayReport.lists?.failed || []).forEach((sale: any) => {
-    const owner = sale.connectedBy?.trim() || 'Unassigned';
+    const owner = sale.connectedBy?.trim() || sale.assignedTo?.trim() || 'Unassigned';
     failedByEmployee.set(owner, (failedByEmployee.get(owner) || 0) + 1);
   });
 
   const salesEmployeeNames = Array.from(new Set([...leadsByEmployee.keys(), ...salesByEmployee.keys(), ...failedByEmployee.keys()])).sort();
+  const formatMoney = (value: number) => `$${Number(value || 0).toLocaleString()}`;
 
   const techSupportByEmployee = new Map<string, { total: number; successful: number; failed: number }>();
   (todayReport.lists?.remote || []).forEach((remote: any) => {
@@ -64,7 +65,7 @@ export default function ManagerOverviewSection({ report }: Props) {
       <div className="grid gap-4 md:grid-cols-4">
         <Metric label="Total Leads" value={todayReport.leads} icon={UserPlus} />
         <Metric label="Total Sales" value={todayReport.salesCount} icon={TrendingUp} />
-        <Metric label="Sales Amount" value={`₹${Number(todayReport.salesAmount || 0).toLocaleString()}`} icon={Target} />
+        <Metric label="Sales Amount" value={formatMoney(Number(todayReport.salesAmount || 0))} icon={Target} />
         <Metric label="Failed Sales" value={todayReport.failedSales} icon={Flag} />
       </div>
 
