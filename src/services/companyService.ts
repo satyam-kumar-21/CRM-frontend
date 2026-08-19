@@ -259,7 +259,7 @@ export interface ICompanyLead {
   techSupportEmployeeName?: string;
   techSupportCompletedAt?: string;
   paymentConfirmed?: 'yes' | 'no';
-  finalStatus?: 'PENDING_PAYMENT' | 'CLOSED' | 'PAYMENT_FAILED';
+  finalStatus?: 'PENDING_PAYMENT' | 'CLOSED' | 'PAYMENT_FAILED' | 'NOT_SALE';
   status?: 'OPEN' | 'COMPLETED';
   createdAt?: string;
   workflowMessageId?: string;
@@ -282,6 +282,7 @@ export interface ICompanySale {
   connectedBy: string;
   customerType?: 'NEW' | 'EXISTING_CUSTOMER' | 'UPGRADE';
   transactionType?: 'SALE' | 'UPGRADE';
+  needsTechSupport?: 'yes' | 'no';
   salesEmployeeId?: string;
   salesEmployeeName?: string;
   techSupportEmployeeId?: string;
@@ -513,13 +514,13 @@ export const companyService = {
   searchCustomers: async (query: string): Promise<ICustomerSearchResult[]> => (await api.get('/company/sales/customers/search', { params: { q: query } })).data.data,
   createUpgrade: async (payload: Partial<ICustomerSearchResult> & { customerId?: string; customerName?: string; customerEmail?: string; mobile?: string; country?: string; system?: string; upgradeAmount?: number; salesTaxType?: 'PERCENTAGE' | 'DIRECT_AMOUNT'; salesTaxValue?: number; salesTaxAmount?: number; finalAmount?: number; paymentMethod?: ICompanySale['paymentMethod']; salesEmployeeRemark?: string; needsTechSupport?: 'yes' | 'no'; }): Promise<IUpgradeRecord> => (await api.post('/company/sales/upgrades', payload)).data.data,
   getUpgrades: async (params: { customerId?: string; q?: string; status?: string } = {}): Promise<IUpgradeRecord[]> => (await api.get('/company/sales/upgrades', { params })).data.data,
-  getVerifications: async (params: { status?: string } = {}): Promise<ICompanySale[]> => (await api.get('/company/verification', { params })).data.data,
+  getVerifications: async (params: { status?: string; today?: string } = {}): Promise<ICompanySale[]> => (await api.get('/company/verification', { params })).data.data,
   createVerification: async (payload: Partial<ICompanySale> & { name: string; country: string; system: string; connectedBy: string; amount: number; paymentMethod: ICompanySale['paymentMethod']; }): Promise<ICompanySale> => (await api.post('/company/verification', payload)).data.data,
   updateVerification: async (id: string, payload: Partial<ICompanySale>): Promise<ICompanySale> => (await api.patch(`/company/verification/${id}`, payload)).data.data,
   deleteVerification: async (id: string): Promise<{ id: string }> => (await api.delete(`/company/verification/${id}`)).data.data,
   startVerification: async (id: string): Promise<ICompanySale> => (await api.post(`/company/verification/${id}/start`)).data.data,
   completeVerification: async (id: string, payload: { status: 'SUCCESSFUL' | 'FAILED' | 'PENDING'; notes?: string; failedReason?: string; pendingReason?: string }): Promise<ICompanySale> => (await api.post(`/company/verification/${id}/complete`, payload)).data.data,
-  getFeedbacks: async (params: { status?: string } = {}): Promise<ICompanySale[]> => (await api.get('/company/feedback', { params })).data.data,
+  getFeedbacks: async (params: { status?: string; today?: string } = {}): Promise<ICompanySale[]> => (await api.get('/company/feedback', { params })).data.data,
   completeFeedback: async (id: string, payload: { rating?: 'Positive' | 'Neutral' | 'Negative'; notes?: string; status?: 'COMPLETED' | 'PENDING'; pendingReason?: string }): Promise<ICompanySale> => (await api.post(`/company/feedback/${id}/complete`, payload)).data.data,
   getRemoteSupport: async (filters: Record<string, any> = {}): Promise<IRemoteSupportRecord[]> => (await api.get('/company/remote-support', { params: filters })).data.data,
   createRemoteSupport: async (data: Partial<IRemoteSupportRecord>) => (await api.post('/company/remote-support', data)).data.data,

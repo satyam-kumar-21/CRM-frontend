@@ -32,16 +32,9 @@ interface CloseSaleFormState {
 }
 
 /* ─── helpers ─────────────────────────────────────────────── */
-const isToday = (dateStr?: string): boolean => {
-  if (!dateStr) return false;
-  const d = new Date(dateStr);
-  const now = new Date();
-  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
-};
-
 const sortLeads = (data: ICompanyLead[]): ICompanyLead[] => {
   const order = (l: ICompanyLead): number => {
-    if (l.finalStatus === 'CLOSED' || l.finalStatus === 'PAYMENT_FAILED') return 100;
+    if (l.finalStatus === 'CLOSED' || l.finalStatus === 'PAYMENT_FAILED' || l.finalStatus === 'NOT_SALE') return 100;
     if (l.status === 'COMPLETED') return 99;
     if (l.connected === 'yes' && l.isSale === 'yes' && l.saleAmount) return 1;
     if (l.connected === 'yes' && l.isSale === 'yes') return 2;
@@ -54,7 +47,7 @@ const sortLeads = (data: ICompanyLead[]): ICompanyLead[] => {
 
 /* ─── step indicator ─────────────────────────────────────── */
 const getActiveStep = (lead: ICompanyLead): number => {
-  if (lead.finalStatus === 'CLOSED' || lead.finalStatus === 'PAYMENT_FAILED') return 6;
+  if (lead.finalStatus === 'CLOSED' || lead.finalStatus === 'PAYMENT_FAILED' || lead.finalStatus === 'NOT_SALE') return 6;
   if (lead.status === 'COMPLETED') return 6;
   const ts = lead.techSupportStatus || 'NONE';
   if (lead.saleAmount && lead.isSale === 'yes') {
@@ -86,6 +79,7 @@ export function SalesTodaysWorkSection() {
   const [leads, setLeads] = useState<ICompanyLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [amountInputs, setAmountInputs] = useState<Record<string, string>>({});
+  const [supportMessages, setSupportMessages] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
   // Closing Sale Modal / Form state
@@ -110,8 +104,8 @@ export function SalesTodaysWorkSection() {
 
   const fetchLeads = async () => {
     try {
-      const data = await companyService.getLeads();
-      setLeads(sortLeads(data.filter((l) => isToday(l.acceptedAt))));
+      const data = await companyService.getTodaysWork();
+      setLeads(sortLeads(data.leads || []));
     } catch {
       toast.error('Unable to fetch leads.');
     } finally {
@@ -150,12 +144,13 @@ export function SalesTodaysWorkSection() {
   const handleRequestTechSupport = async (lead: ICompanyLead) => {
     try {
       setSavingId(lead._id);
+      const supportMessage = supportMessages[lead._id] ?? lead.otherDetails ?? '';
       await companyService.createRemoteSupport({
         customerName: lead.name,
         customerContact: lead.contactNo,
         system: lead.system,
-        otherDetails: lead.otherDetails,
-        issueReason: lead.otherDetails || 'Remote support requested from Today\'s Work',
+        otherDetails: supportMessage,
+        issueReason: supportMessage || 'Remote support requested from Today\'s Work',
         leadId: lead._id,
       });
       const updated = await companyService.updateLead(lead._id, { techSupportStatus: 'PENDING' });
@@ -262,9 +257,9 @@ export function SalesTodaysWorkSection() {
     }
   };
 
-  const handlePaymentFailed = (lead: ICompanyLead) => {
-    if (window.confirm(`Mark sale as Payment Failed for ${lead.name}? This will complete the lead workflow without recording a sale.`)) {
-      void patch(lead._id, { finalStatus: 'PAYMENT_FAILED' }, 'Marked as Payment Failed.');
+  const handleSaleNotClosed = (lead: ICompanyLead) => {
+    if (window.confirm(`Mark ${lead.name} as not interested? This will complete the lead without creating a sale.`)) {
+      void patch(lead._id, { finalStatus: 'NOT_SALE' }, 'Marked as not interested. Workflow completed.');
     }
   };
 
@@ -329,7 +324,8 @@ export function SalesTodaysWorkSection() {
             const activeStep = getActiveStep(lead);
             const ts = lead.techSupportStatus || 'NONE';
             const isSaving = savingId === lead._id;
-            const isLocked = lead.finalStatus === 'CLOSED' || lead.finalStatus === 'PAYMENT_FAILED';
+            const isLocked = lead.finalStatus === 'CLOSED' || lead.finalStatus === 'PAYMENT_FAILED' || lead.finalStatus === 'NOT_SALE';
+            const isNotSale = lead.finalStatus === 'NOT_SALE';
 
             // Step status helpers
             const step1Done = lead.connected === 'yes';
@@ -365,6 +361,11 @@ export function SalesTodaysWorkSection() {
                       {lead.finalStatus === 'PAYMENT_FAILED' && (
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
                           <XCircle className="h-3 w-3" /> PAYMENT FAILED
+                        </span>
+                      )}
+                      {lead.finalStatus === 'NOT_SALE' && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
+                          <XCircle className="h-3 w-3" /> NOT INTERESTED · COMPLETED
                         </span>
                       )}
                       {!lead.finalStatus && lead.status !== 'COMPLETED' && (
@@ -436,7 +437,7 @@ export function SalesTodaysWorkSection() {
                           >YES</button>
                           <button
                             disabled={isLocked || isSaving}
-                            onClick={() => void patch(lead._id, { isSale: 'no' }, 'Marked as Sale: NO')}
+                            onClick={() => handleSaleNotClosed(lead)}
                             className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${lead.isSale === 'no' ? 'bg-rose-600 text-white shadow-lg shadow-rose-500/20' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'}`}
                           >NO</button>
                         </div>
@@ -447,6 +448,15 @@ export function SalesTodaysWorkSection() {
                     </div>
                   </div>
 
+                  {isNotSale ? (
+                    <div className="mt-1 rounded-xl border border-rose-500/30 bg-rose-950/20 p-4">
+                      <div className="flex items-center gap-2 text-sm font-bold text-rose-300">
+                        <XCircle className="h-5 w-5" />
+                        Lead completed without a sale
+                      </div>
+                      <p className="mt-1 text-xs text-slate-400">Customer was not interested. No further action is available for this lead.</p>
+                    </div>
+                  ) : (<>
                   {/* ── Step 3: Enter Agreed Amount ONLY (No Mode of Payment here) ── */}
                   <div className="flex gap-4">
                     <div className="flex flex-col items-center">
@@ -516,21 +526,33 @@ export function SalesTodaysWorkSection() {
                       {!showTechStep ? (
                         <p className="text-xs text-slate-600 italic">Requires amount to be saved first</p>
                       ) : canRequestTech ? (
-                        <div className="flex gap-2 max-w-xs">
-                          <button
-                            disabled={isSaving}
-                            onClick={() => void handleRequestTechSupport(lead)}
-                            className="flex-1 rounded-lg bg-cyan-600 py-2 text-xs font-bold text-white hover:bg-cyan-500 shadow transition-all flex items-center justify-center gap-1"
-                          >
-                            <Wrench className="h-3.5 w-3.5" /> Request Support
-                          </button>
-                          <button
-                            disabled={isSaving}
-                            onClick={() => {
-                              void patch(lead._id, { finalStatus: 'PENDING_PAYMENT' }, 'No tech support needed — ready for final closing.');
-                            }}
-                            className="flex-1 rounded-lg bg-slate-800 py-2 text-xs font-bold text-slate-300 hover:bg-slate-700 transition-all"
-                          >Not Needed</button>
+                        <div className="space-y-3">
+                          <label className="block max-w-xl space-y-1 text-xs text-slate-400">
+                            <span className="font-semibold text-slate-300">Support message for Tech Support</span>
+                            <textarea
+                              rows={2}
+                              value={supportMessages[lead._id] ?? lead.otherDetails ?? ''}
+                              onChange={(event) => setSupportMessages((current) => ({ ...current, [lead._id]: event.target.value }))}
+                              placeholder="Describe the customer issue or requested work"
+                              className="w-full resize-none rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-cyan-500"
+                            />
+                          </label>
+                          <div className="flex gap-2 max-w-xs">
+                            <button
+                              disabled={isSaving}
+                              onClick={() => void handleRequestTechSupport(lead)}
+                              className="flex-1 rounded-lg bg-cyan-600 py-2 text-xs font-bold text-white hover:bg-cyan-500 shadow transition-all flex items-center justify-center gap-1"
+                            >
+                              <Wrench className="h-3.5 w-3.5" /> Request Support
+                            </button>
+                            <button
+                              disabled={isSaving}
+                              onClick={() => {
+                                void patch(lead._id, { finalStatus: 'PENDING_PAYMENT' }, 'No tech support needed — ready for final closing.');
+                              }}
+                              className="flex-1 rounded-lg bg-slate-800 py-2 text-xs font-bold text-slate-300 hover:bg-slate-700 transition-all"
+                            >Not Needed</button>
+                          </div>
                         </div>
                       ) : ts === 'PENDING' || ts === 'ACCEPTED' ? (
                         <div className="flex items-center gap-2">
@@ -609,6 +631,10 @@ export function SalesTodaysWorkSection() {
                               )}
                             </div>
                           </div>
+                        ) : lead.finalStatus === 'NOT_SALE' ? (
+                          <span className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 w-fit">
+                            <XCircle className="h-4 w-4" /> Customer not interested. Workflow completed; no next steps.
+                          </span>
                         ) : (
                           <span className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 w-fit">
                             <XCircle className="h-4 w-4" /> Payment Not Received — Sale Failed
@@ -632,10 +658,10 @@ export function SalesTodaysWorkSection() {
                             </button>
                             <button
                               disabled={isSaving}
-                              onClick={() => handlePaymentFailed(lead)}
+                              onClick={() => handleSaleNotClosed(lead)}
                               className="rounded-lg bg-rose-700/80 px-4 py-2.5 text-xs font-bold text-white hover:bg-rose-600 shadow transition-all flex items-center gap-1.5"
                             >
-                              <AlertTriangle className="h-3.5 w-3.5" /> NO — Payment Failed
+                              <AlertTriangle className="h-3.5 w-3.5" /> NO — Complete Without Sale
                             </button>
                           </div>
                         </div>
@@ -650,6 +676,7 @@ export function SalesTodaysWorkSection() {
                       )}
                     </div>
                   </div>
+                  </>)}
 
                 </div>
               </div>

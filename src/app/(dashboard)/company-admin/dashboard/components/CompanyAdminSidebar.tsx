@@ -4,6 +4,7 @@ import React, { useState, type Dispatch, type SetStateAction } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { LogOut, Settings, ShieldCheck, Lock } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { getRoutePermissionKey } from '@/lib/useCompanySettings';
 import type { NavSection } from '../types';
@@ -38,6 +39,7 @@ export function CompanyAdminSidebar({
   setActiveSection,
 }: CompanyAdminSidebarProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [showRestricted, setShowRestricted] = useState<{ open: boolean; message?: string }>({ open: false });
 
   const handleLogout = async () => {
@@ -45,7 +47,10 @@ export function CompanyAdminSidebar({
       await api.post('/company/logout');
     } finally {
       window.localStorage.removeItem('companyAccessToken');
-      router.replace('/company-admin/login');
+      window.localStorage.removeItem('crm-user-theme');
+      window.sessionStorage.clear();
+      queryClient.clear();
+      window.location.replace('/company-admin/login');
     }
   };
 

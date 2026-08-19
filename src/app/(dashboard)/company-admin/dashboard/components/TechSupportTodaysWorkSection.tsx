@@ -15,7 +15,7 @@ export function TechSupportTodaysWorkSection() {
 
   const fetchTickets = async () => {
     try {
-      const data = await companyService.getRemoteSupport();
+      const data = await companyService.getRemoteSupport({ today: 'true' });
       setTickets(data);
     } catch {
       toast.error('Unable to fetch your support tickets.');

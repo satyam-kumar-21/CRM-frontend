@@ -6,9 +6,27 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { Bell } from 'lucide-react';
-import type { ICompanyMessage } from '@/services/companyService';
+import type { ICompanyMessage, LeadWorkflow } from '@/services/companyService';
 
 type WorkspaceNotificationWatcherProps = { dashboardPath: string; onMessage?: (message: ICompanyMessage) => void };
+
+const getNotificationContent = (message: ICompanyMessage) => {
+  try {
+    const workflow = JSON.parse(message.content) as Partial<LeadWorkflow>;
+    if (workflow.type !== 'lead-workflow' || !workflow.lead) return null;
+
+    const lead = workflow.lead;
+    const details = [lead.name, lead.country, lead.system].filter(Boolean).join(' · ');
+    const contact = lead.contactNo ? `Contact: ${lead.contactNo}` : '';
+    const status = workflow.status ? `Status: ${workflow.status}` : '';
+    return {
+      title: 'New lead from Company Admin',
+      body: [details, contact, status].filter(Boolean).join(' · '),
+    };
+  } catch {
+    return null;
+  }
+};
 
 const playMelodyPipSound = () => {
   try {
@@ -103,8 +121,10 @@ export function WorkspaceNotificationWatcher({ dashboardPath, onMessage }: Works
       if (!message?._id || message.isMine) return;
       onMessageRef.current?.(message);
 
-      const title = message.senderName || 'New workspace message';
-      const body = message.content.length > 120 ? `${message.content.slice(0, 117)}...` : message.content;
+      const notificationContent = getNotificationContent(message);
+      const title = notificationContent?.title || message.senderName || 'New workspace message';
+      const rawBody = notificationContent?.body || message.content;
+      const body = rawBody.length > 120 ? `${rawBody.slice(0, 117)}...` : rawBody;
 
       toast.info(title, { description: body, duration: 5000 });
       refreshDashboards();

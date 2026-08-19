@@ -139,7 +139,7 @@ export function UpgradeSection() {
         needsTechSupport: upgradeDraft.needsTechSupport,
       });
       setUpgrades((current) => [created, ...current]);
-      toast.success(`Upgrade #${created.upgradeNumber || 1} created successfully & sent to Verification`);
+      toast.success('Upgrade request sent for admin charge approval.');
       setUpgradeDraft(null);
       setSearchTerm('');
       setSearchResults([]);
@@ -354,6 +354,7 @@ export function UpgradeSection() {
                 <td className="p-3">
                   <div className="font-medium text-white">{upgrade.customerName}</div>
                   <div className="text-[10px] text-slate-500">{upgrade.customerId || 'Customer record'}</div>
+                  {upgrade.salesEmployeeRemark && <div className="mt-1 max-w-xs text-[10px] text-cyan-300">Message: {upgrade.salesEmployeeRemark}</div>}
                 </td>
                 <td className="p-3">
                   <div>{upgrade.customerEmail || '—'}</div>

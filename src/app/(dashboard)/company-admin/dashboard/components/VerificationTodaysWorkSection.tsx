@@ -12,7 +12,7 @@ export function VerificationTodaysWorkSection() {
   const [verRecords, setVerRecords] = useState<ICompanySale[]>([]);
   const [fbRecords, setFbRecords] = useState<ICompanySale[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'verification' | 'pending' | 'feedback'>('verification');
+  const [activeTab, setActiveTab] = useState<'verification' | 'pending' | 'feedback'>('pending');
 
   // Verification modals
   const [successModalId, setSuccessModalId] = useState<string | null>(null);
@@ -32,8 +32,8 @@ export function VerificationTodaysWorkSection() {
   const fetchAll = async () => {
     try {
       const [ver, fb] = await Promise.all([
-        companyService.getVerifications(),
-        companyService.getFeedbacks(),
+        companyService.getVerifications({ today: 'true' }),
+        companyService.getFeedbacks({ today: 'true' }),
       ]);
       setVerRecords(ver);
       setFbRecords(fb);
@@ -181,6 +181,12 @@ export function VerificationTodaysWorkSection() {
                     {rec.customerType === 'UPGRADE' && <span className="rounded bg-fuchsia-500/20 px-1.5 py-0.5 text-[9px] font-bold text-fuchsia-300 border border-fuchsia-500/30">UPGRADE</span>}
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">{rec.country} · {rec.system} · Sales by: {rec.salesEmployeeName || rec.connectedBy}</p>
+                  {rec.issues && (
+                    <div className="mt-2 flex items-start gap-2 rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-2 text-xs text-cyan-100">
+                      <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" />
+                      <span><span className="font-semibold text-cyan-300">Sales issue/message:</span> {rec.issues}</span>
+                    </div>
+                  )}
                   <p className="text-sm font-semibold text-emerald-400 mt-1.5"><DollarSign className="inline h-3.5 w-3.5" />${rec.amount?.toLocaleString()} · {rec.paymentMethod}</p>
                 </div>
                 <div className="flex gap-2">
@@ -210,6 +216,12 @@ export function VerificationTodaysWorkSection() {
                     {rec.customerType === 'UPGRADE' && <span className="rounded bg-fuchsia-500/20 px-1.5 py-0.5 text-[9px] font-bold text-fuchsia-300 border border-fuchsia-500/30">UPGRADE</span>}
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">{rec.country} · {rec.system} · Sales by: {rec.salesEmployeeName || rec.connectedBy}</p>
+                  {rec.issues && (
+                    <div className="mt-2 flex items-start gap-2 rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-2 text-xs text-cyan-100">
+                      <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" />
+                      <span><span className="font-semibold text-cyan-300">Sales issue/message:</span> {rec.issues}</span>
+                    </div>
+                  )}
                   {(rec.alternateContactNo || rec.customerEmail) && (
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                       {rec.alternateContactNo && (
