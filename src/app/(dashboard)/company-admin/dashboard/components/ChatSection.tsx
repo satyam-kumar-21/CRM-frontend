@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { Check, CheckCheck, Hash, MoreVertical, Pencil, Plus, Search, Send, Trash2, UserRound, X, UserPlus, Image, FileText, Mic } from 'lucide-react';
+import { Check, CheckCheck, Hash, MoreVertical, Pencil, Plus, Search, Send, Trash2, UserRound, X, UserPlus, Image, FileText, Mic, PanelLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { io } from 'socket.io-client';
 import { companyService, ICompanyMessage, type ICompanyLead, type IRemoteSupportRecord, type LeadWorkflow } from '@/services/companyService';
@@ -27,6 +27,7 @@ type ChatSectionProps = {
   isAdmin?: boolean;
   onCreateGroup?: () => void;
   onConversationRead?: (conversationId: string) => void;
+  onShowSidebar?: () => void;
   hideSidebar?: boolean;
 };
 
@@ -43,7 +44,7 @@ function formatMessageDateLabel(dateString: string): string {
 }
 
 export function ChatSection(props: ChatSectionProps) {
-  const { groups, employees, activeFilter, setActiveFilter, selectedChatId, setSelectedChatId, messageInput, setMessageInput, onSendMessage, onSendLead, currentUserId, currentUserName = 'Employee', currentUserRole, isAdmin = false, onCreateGroup, onConversationRead, hideSidebar = false } = props;
+  const { groups, employees, activeFilter, setActiveFilter, selectedChatId, setSelectedChatId, messageInput, setMessageInput, onSendMessage, onSendLead, currentUserId, currentUserName = 'Employee', currentUserRole, isAdmin = false, onCreateGroup, onConversationRead, onShowSidebar, hideSidebar = false } = props;
   const [messages, setMessages] = useState<ICompanyMessage[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
@@ -407,6 +408,7 @@ export function ChatSection(props: ChatSectionProps) {
         {/* Header */}
         <header className="border-b border-slate-800 bg-slate-900/80 p-3.5 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-3">
+            {hideSidebar && onShowSidebar && <button type="button" aria-label="Show chats" title="Show chats" onClick={onShowSidebar} className="rounded-lg bg-slate-800 p-2 text-slate-300 transition hover:bg-indigo-600 hover:text-white md:hidden"><PanelLeft className="h-4 w-4" /></button>}
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600/20 text-emerald-400 font-bold">
               {selectedGroup ? <Hash className="h-4 w-4" /> : <UserRound className="h-4 w-4" />}
             </div>

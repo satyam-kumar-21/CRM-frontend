@@ -31,6 +31,7 @@ export function MultiChatSection({
   isAdmin,
   onConversationRead,
 }: MultiChatSectionProps) {
+  const [showConversationList, setShowConversationList] = useState(openChatIds.length === 0);
   const [activeFilter, setActiveFilter] = useState<ChatFilter>('all');
   const [chatSearch, setChatSearch] = useState('');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -42,6 +43,7 @@ export function MultiChatSection({
     .sort((left, right) => new Date(right.latestChatAt || 0).getTime() - new Date(left.latestChatAt || 0).getTime()), [activeFilter, employees, groups, query]);
 
   const openChat = (conversationId: string) => {
+    setShowConversationList(false);
     if (openChatIds.includes(conversationId)) return;
     if (openChatIds.length >= 3) {
       setOpenChatIds([...openChatIds.slice(1), conversationId]);
@@ -53,6 +55,7 @@ export function MultiChatSection({
   const closeChat = (conversationId: string) => {
     const next = openChatIds.filter((id) => id !== conversationId);
     setOpenChatIds(next);
+    if (!next.length) setShowConversationList(true);
     setDrafts((current) => {
       const copy = { ...current };
       delete copy[conversationId];
@@ -78,8 +81,8 @@ export function MultiChatSection({
       : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3';
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-[280px_minmax(0,1fr)] overflow-hidden bg-slate-950 font-sans">
-      <aside className="flex min-h-0 flex-col border-r border-slate-800/80 bg-slate-900/50">
+    <div className="grid h-full min-h-0 grid-cols-1 overflow-hidden bg-slate-950 font-sans md:grid-cols-[280px_minmax(0,1fr)]">
+      <aside className={`${showConversationList ? 'flex' : 'hidden'} min-h-0 flex-col border-r border-slate-800/80 bg-slate-900/50 md:flex`}>
         <div className="space-y-3 border-b border-slate-800/80 bg-slate-900/70 p-3.5">
           <div className="flex items-center justify-between">
             <div><h2 className="text-base font-bold tracking-tight text-white">Workspace Chat</h2><p className="mt-0.5 text-[11px] text-slate-500">Open up to 3 chats</p></div>
@@ -96,8 +99,8 @@ export function MultiChatSection({
           </button>)}
         </div>
       </aside>
-      <div className={`grid min-h-0 min-w-0 gap-2 overflow-auto bg-slate-950 p-2 ${chatGridColumns}`}>
-        {openChatIds.map((conversationId) => <div key={conversationId} className="relative min-h-[520px] overflow-hidden rounded-xl border border-slate-800 shadow-lg"><button aria-label="Close chat" title="Close chat" onClick={() => closeChat(conversationId)} className="absolute right-2 top-2 z-20 rounded-full bg-slate-950/80 p-1.5 text-slate-400 transition hover:bg-rose-600 hover:text-white"><X className="h-3.5 w-3.5" /></button><ChatSection groups={groups} employees={employees} activeFilter={activeFilter} setActiveFilter={setActiveFilter} selectedChatId={conversationId} setSelectedChatId={() => undefined} messageInput={drafts[conversationId] || ''} setMessageInput={(value) => setDrafts((current) => ({ ...current, [conversationId]: typeof value === 'function' ? value(current[conversationId] || '') : value }))} onSendMessage={sendMessage(conversationId)} onSendLead={sendLead(conversationId)} currentUserId={currentUserId} currentUserName={currentUserName} currentUserRole={currentUserRole} isAdmin={isAdmin} hideSidebar onConversationRead={onConversationRead} /></div>)}
+      <div className={`${showConversationList ? 'hidden' : 'grid'} min-h-0 min-w-0 gap-2 overflow-auto bg-slate-950 p-2 md:grid ${chatGridColumns}`}>
+        {openChatIds.map((conversationId) => <div key={conversationId} className="relative min-h-[520px] overflow-hidden rounded-xl border border-slate-800 shadow-lg"><button aria-label="Close chat" title="Close chat" onClick={() => closeChat(conversationId)} className="absolute right-2 top-2 z-20 rounded-full bg-slate-950/80 p-1.5 text-slate-400 transition hover:bg-rose-600 hover:text-white"><X className="h-3.5 w-3.5" /></button><ChatSection groups={groups} employees={employees} activeFilter={activeFilter} setActiveFilter={setActiveFilter} selectedChatId={conversationId} setSelectedChatId={() => undefined} messageInput={drafts[conversationId] || ''} setMessageInput={(value) => setDrafts((current) => ({ ...current, [conversationId]: typeof value === 'function' ? value(current[conversationId] || '') : value }))} onSendMessage={sendMessage(conversationId)} onSendLead={sendLead(conversationId)} currentUserId={currentUserId} currentUserName={currentUserName} currentUserRole={currentUserRole} isAdmin={isAdmin} hideSidebar onShowSidebar={() => setShowConversationList(true)} onConversationRead={onConversationRead} /></div>)}
         {!openChatIds.length && <div className="col-span-full grid place-items-center text-sm text-slate-500">Select a conversation to open a chat window.</div>}
       </div>
     </div>
