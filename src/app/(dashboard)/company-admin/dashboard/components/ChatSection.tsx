@@ -27,6 +27,7 @@ type ChatSectionProps = {
   isAdmin?: boolean;
   onCreateGroup?: () => void;
   onConversationRead?: (conversationId: string) => void;
+  hideSidebar?: boolean;
 };
 
 function formatMessageDateLabel(dateString: string): string {
@@ -42,7 +43,7 @@ function formatMessageDateLabel(dateString: string): string {
 }
 
 export function ChatSection(props: ChatSectionProps) {
-  const { groups, employees, activeFilter, setActiveFilter, selectedChatId, setSelectedChatId, messageInput, setMessageInput, onSendMessage, onSendLead, currentUserId, currentUserName = 'Employee', currentUserRole, isAdmin = false, onCreateGroup, onConversationRead } = props;
+  const { groups, employees, activeFilter, setActiveFilter, selectedChatId, setSelectedChatId, messageInput, setMessageInput, onSendMessage, onSendLead, currentUserId, currentUserName = 'Employee', currentUserRole, isAdmin = false, onCreateGroup, onConversationRead, hideSidebar = false } = props;
   const [messages, setMessages] = useState<ICompanyMessage[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
@@ -352,9 +353,9 @@ export function ChatSection(props: ChatSectionProps) {
   const saleWorkflow = saleMessage ? parseWorkflow(saleMessage.content) : null;
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 overflow-hidden md:grid-cols-[340px_1fr] bg-slate-950 font-sans">
+    <div className={`grid h-full min-h-0 overflow-hidden bg-slate-950 font-sans ${hideSidebar ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-[340px_1fr]'}`}>
       {/* Sidebar Channels List */}
-      <aside className="flex min-h-0 flex-col border-r border-slate-800/80 bg-slate-900/40">
+      {!hideSidebar && <aside className="flex min-h-0 flex-col border-r border-slate-800/80 bg-slate-900/40">
         <div className="space-y-3 border-b border-slate-800/80 bg-slate-900/60 p-3.5">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-white tracking-tight">Workspace Chat</h2>
@@ -399,7 +400,7 @@ export function ChatSection(props: ChatSectionProps) {
             </button>
           ))}
         </div>
-      </aside>
+      </aside>}
 
       {/* WhatsApp-Style Main Chat Area */}
       <section className="flex min-h-0 flex-col bg-slate-950">

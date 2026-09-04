@@ -3,6 +3,8 @@
 import { Ban, BarChart3, Search, Trash2, UserPlus } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import type { IEmployee } from "../types";
+import { usePagination } from '@/lib/usePagination';
+import { Pagination } from '@/components/Pagination';
 type EmployeesSectionProps = {
   employees: IEmployee[];
   filteredEmployees: IEmployee[];
@@ -28,6 +30,7 @@ export function EmployeesSection({
   onToggleBlock,
   onDeleteEmployee,
 }: EmployeesSectionProps) {
+  const { page, setPage, totalPages, pageItems, total } = usePagination(filteredEmployees);
   return (
     <div className="p-6 overflow-y-auto space-y-5">
       <header className="flex flex-wrap justify-between items-center gap-4 pb-4 border-b border-slate-800">
@@ -88,7 +91,7 @@ export function EmployeesSection({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60">
-            {filteredEmployees.map((emp) => {
+            {pageItems.map((emp) => {
               const isSales = emp.role === 'SALES' || emp.role === 'Sales' || emp.role === 'sales';
               const isTech = emp.role === 'TECH_SUPPORT' || emp.role === 'Tech Support' || emp.role === 'TECHNOLOGY_SUPPORT' || emp.role === 'TECH_SUPPORT';
               const monthlyTarget = emp.salesTarget.monthlyTarget || 0;
@@ -179,6 +182,7 @@ export function EmployeesSection({
             })}
           </tbody>
         </table>
+        <Pagination page={page} totalPages={totalPages} total={total} setPage={setPage} />
       </div>
     </div>
   );

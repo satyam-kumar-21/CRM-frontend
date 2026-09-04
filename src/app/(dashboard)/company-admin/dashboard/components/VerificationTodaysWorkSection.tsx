@@ -5,6 +5,7 @@ import { CalendarCheck, ShieldCheck, MessageSquare, CheckCircle, XCircle, Play, 
 import { toast } from 'sonner';
 import { io } from 'socket.io-client';
 import { companyService, ICompanySale } from '@/services/companyService';
+import { maskSensitiveValue } from '@/lib/utils';
 
 type FeedbackRating = 'Positive' | 'Neutral' | 'Negative';
 
@@ -339,7 +340,7 @@ export function VerificationTodaysWorkSection() {
               <p className="text-xs text-slate-500 uppercase font-bold tracking-widest">Completed ({fbDone.length})</p>
               {fbDone.map((rec) => (
                 <div key={rec._id} className="flex items-center justify-between rounded-xl border border-slate-800/60 bg-slate-900/30 px-4 py-3">
-                  <p className="text-sm font-semibold text-white">{rec.name}</p>
+                  <p className="text-sm font-semibold text-white">{maskSensitiveValue(rec.name)}</p>
                   <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${rec.feedbackRating === 'Positive' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : rec.feedbackRating === 'Negative' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>{rec.feedbackRating}</span>
                 </div>
               ))}

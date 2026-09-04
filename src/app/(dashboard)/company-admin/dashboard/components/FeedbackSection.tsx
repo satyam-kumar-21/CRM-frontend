@@ -150,7 +150,7 @@ export function FeedbackSection({ employeeView = false }: { employeeView?: boole
                 <tr key={rec._id} className="hover:bg-slate-800/30 transition-colors">
                   <td className="p-3.5">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <p className="font-bold text-white text-sm">{rec.name}</p>
+                      <p className="font-bold text-white text-sm">{employeeView ? maskSensitiveValue(rec.name) : rec.name}</p>
                       {rec.customerId && (
                         <span className="rounded bg-indigo-500/20 px-1.5 py-0.5 text-[10px] font-mono font-bold text-indigo-300 border border-indigo-500/30">
                           #{rec.customerId}

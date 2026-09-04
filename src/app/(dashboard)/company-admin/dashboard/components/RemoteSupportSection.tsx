@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Download, LifeBuoy, Check, X, CheckCircle2, XCircle, UserCheck, ShieldCheck, Search, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { companyService, ICompanyEmployee, IRemoteSupportRecord } from '@/services/companyService';
+import { maskSensitiveValue } from '@/lib/utils';
 
 const inputStyle = 'rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500';
 
@@ -328,11 +329,14 @@ export function RemoteSupportSection({ role, isAdmin = false }: RemoteSupportSec
                 </td>
               </tr>
             ) : (
-              filteredByTabRecords.map((record) => (
+              filteredByTabRecords.map((record) => {
+                const isCompleted = ['SUCCESSFUL', 'FAILED', 'REJECTED'].includes(record.status);
+                const maskCustomer = !isAdmin && isCompleted;
+                return (
                 <tr key={record._id} className="hover:bg-slate-950/60 transition-colors">
                   <td className="p-4">
-                    <p className="font-semibold text-white">{record.customerName}</p>
-                    <p className="text-[11px] text-slate-400">{record.customerContact}</p>
+                    <p className="font-semibold text-white">{maskCustomer ? maskSensitiveValue(record.customerName) : record.customerName}</p>
+                    <p className="text-[11px] text-slate-400">{maskCustomer ? maskSensitiveValue(record.customerContact) : record.customerContact}</p>
                   </td>
                   <td className="p-4">
                     <p className="text-slate-200">{record.system || 'System: N/A'}</p>
@@ -382,7 +386,8 @@ export function RemoteSupportSection({ role, isAdmin = false }: RemoteSupportSec
                     )}
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

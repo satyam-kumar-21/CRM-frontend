@@ -5,6 +5,7 @@ import { Building2, CreditCard, Download, Search, TrendingUp, UserRound, X } fro
 import { toast } from 'sonner';
 import { companyService, ICompanyEmployee, ICustomerSearchResult, IUpgradeRecord } from '@/services/companyService';
 import { matchesBusinessDateFilters } from '@/lib/businessDate';
+import { maskSensitiveValue } from '@/lib/utils';
 
 const input = 'rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500';
 const select = `${input} cursor-pointer appearance-none bg-[linear-gradient(45deg,transparent_50%,#94a3b8_50%),linear-gradient(135deg,#94a3b8_50%,transparent_50%)] bg-[position:calc(100%-14px)_50%,calc(100%-9px)_50%] bg-[size:5px_5px,5px_5px] bg-no-repeat pr-8`;
@@ -25,7 +26,7 @@ const calculateUpgradeTotals = (draft: any) => {
   return { salesTaxAmount, finalAmount: amount + salesTaxAmount };
 };
 
-export function UpgradeSection() {
+export function UpgradeSection({ employeeView = false }: { employeeView?: boolean }) {
   const [upgrades, setUpgrades] = useState<IUpgradeRecord[]>([]);
   const [employees, setEmployees] = useState<ICompanyEmployee[]>([]);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
@@ -65,7 +66,14 @@ export function UpgradeSection() {
     setSearchLoading(true);
     try {
       const results = await companyService.searchCustomers(trimmed);
-      setSearchResults(results || []);
+      const seen = new Set<string>();
+      const uniqueResults = (results || []).filter((customer) => {
+        const key = (customer.customerId || customer._id || customer.name).toLowerCase().trim();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      setSearchResults(uniqueResults);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Unable to search customers');
       setSearchResults([]);
@@ -153,10 +161,10 @@ export function UpgradeSection() {
       ['Upgrade #', 'Customer', 'Customer ID', 'Email', 'Mobile', 'Country', 'System', 'Upgraded By', 'Amount', 'Sales Tax', 'Final Amount', 'Payment', 'Date'],
       ...filteredUpgrades.map((upgrade) => [
         String(upgrade.upgradeNumber || upgrade._id),
-        upgrade.customerName || '—',
+        employeeView ? maskSensitiveValue(upgrade.customerName) : (upgrade.customerName || '—'),
         upgrade.customerId || '—',
-        upgrade.customerName ? '' : '',
-        '',
+        employeeView ? maskSensitiveValue(upgrade.customerEmail) : (upgrade.customerEmail || ''),
+        employeeView ? maskSensitiveValue(upgrade.mobile) : (upgrade.mobile || ''),
         upgrade.country || '',
         upgrade.system || '',
         upgrade.upgradedByName || upgrade.salesEmployeeName || '—',
@@ -212,8 +220,8 @@ export function UpgradeSection() {
 
         {searchResults.length > 0 && (
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {searchResults.map((customer) => (
-              <div key={`${customer.customerId || customer._id}-${customer.name}`} className="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
+            {searchResults.map((customer, index) => (
+              <div key={`${customer._id || customer.customerId || 'customer'}-${index}`} className="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-white">{customer.name}</p>
@@ -352,13 +360,13 @@ export function UpgradeSection() {
               <tr key={upgrade._id} className="hover:bg-slate-900/40 transition-colors">
                 <td className="p-3 font-semibold text-white">#{upgrade.upgradeNumber || 1}</td>
                 <td className="p-3">
-                  <div className="font-medium text-white">{upgrade.customerName}</div>
+                  <div className="font-medium text-white">{employeeView ? maskSensitiveValue(upgrade.customerName) : upgrade.customerName}</div>
                   <div className="text-[10px] text-slate-500">{upgrade.customerId || 'Customer record'}</div>
                   {upgrade.salesEmployeeRemark && <div className="mt-1 max-w-xs text-[10px] text-cyan-300">Message: {upgrade.salesEmployeeRemark}</div>}
                 </td>
                 <td className="p-3">
-                  <div>{upgrade.customerEmail || '—'}</div>
-                  <div className="text-emerald-400">{upgrade.mobile || '—'}</div>
+                  <div>{employeeView ? maskSensitiveValue(upgrade.customerEmail) : (upgrade.customerEmail || '—')}</div>
+                  <div className="text-emerald-400">{employeeView ? maskSensitiveValue(upgrade.mobile) : (upgrade.mobile || '—')}</div>
                 </td>
                 <td className="p-3">
                   <div><Building2 className="mr-1 inline h-3.5 w-3.5 text-slate-400" />{upgrade.country || '—'}</div>

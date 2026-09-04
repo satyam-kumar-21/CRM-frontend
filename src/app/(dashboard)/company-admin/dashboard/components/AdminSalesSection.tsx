@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Building2, Download, Pencil, Plus, Trash2, TrendingUp, Flag, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { companyService, ICompanyEmployee, ICompanySale } from '@/services/companyService';
@@ -13,6 +14,7 @@ type Filters = { employee: string; month: string; from: string; to: string };
 const emptyFilters: Filters = { employee: '', month: '', from: '', to: '' };
 
 export function AdminSalesSection() {
+  const queryClient = useQueryClient();
   const [sales, setSales] = useState<ICompanySale[]>([]);
   const [pendingSales, setPendingSales] = useState<ICompanySale[]>([]);
   const [chargedToday, setChargedToday] = useState<ICompanySale[]>([]);
@@ -49,6 +51,8 @@ export function AdminSalesSection() {
       setPendingSales((current) => current.filter((item) => item._id !== sale._id));
       setChargedToday((current) => [sale, ...current]);
       setSales((current) => [sale, ...current.filter((item) => item._id !== sale._id)]);
+      void queryClient.invalidateQueries({ queryKey: ['pendingSalesCount'] });
+      void queryClient.invalidateQueries({ queryKey: ['employeePendingSales'] });
       toast.success('Sale marked as charged');
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Unable to mark sale as charged');
@@ -81,6 +85,8 @@ export function AdminSalesSection() {
       setMarkingFailedSale(null);
       setFailedReason('');
       setSaleStatus('CHARGED');
+      void queryClient.invalidateQueries({ queryKey: ['pendingSalesCount'] });
+      void queryClient.invalidateQueries({ queryKey: ['employeePendingSales'] });
     } catch (error: any) {
       toast.error(error.response?.data?.message || `Unable to mark sale as ${saleStatus.toLowerCase()}`);
     }

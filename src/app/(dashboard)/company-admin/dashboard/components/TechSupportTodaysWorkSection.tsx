@@ -1,10 +1,11 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import { CalendarCheck, LifeBuoy, CheckCircle2, XCircle, Clock, User, Phone, Monitor, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { io } from 'socket.io-client';
 import { companyService, IRemoteSupportRecord } from '@/services/companyService';
+import { maskSensitiveValue } from '@/lib/utils';
 
 export function TechSupportTodaysWorkSection() {
   const [tickets, setTickets] = useState<IRemoteSupportRecord[]>([]);
@@ -155,7 +156,7 @@ export function TechSupportTodaysWorkSection() {
             {completed.map((ticket) => (
               <div key={ticket._id} className="flex items-center justify-between rounded-xl border border-slate-800/60 bg-slate-900/40 px-4 py-3">
                 <div>
-                  <p className="text-sm font-semibold text-white">{ticket.customerName}</p>
+                  <p className="text-sm font-semibold text-white">{maskSensitiveValue(ticket.customerName)}</p>
                   {ticket.status === 'FAILED' && ticket.failedReason && <p className="text-[11px] text-rose-400 mt-0.5">Reason: {ticket.failedReason}</p>}
                 </div>
                 <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${ticket.status === 'SUCCESSFUL' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'}`}>{ticket.status}</span>

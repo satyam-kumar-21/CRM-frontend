@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { companyService, ICompanySale } from '@/services/companyService';
 import { matchesBusinessDateFilters } from '@/lib/businessDate';
 import { maskSensitiveValue } from '@/lib/utils';
+import { usePagination } from '@/lib/usePagination';
+import { Pagination } from '@/components/Pagination';
 
 const input = 'rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500';
 
@@ -30,6 +32,7 @@ export function FailedSalesSection({ employeeView = false }: { employeeView?: bo
 
   const revenue = filtered.reduce((total, sale) => total + Number(sale.finalAmount ?? sale.amount ?? 0), 0);
   const maskField = (value?: string) => (employeeView ? maskSensitiveValue(value) : value || '—');
+  const { page, setPage, totalPages, pageItems, total } = usePagination(filtered);
 
   return (
     <section className="min-h-full space-y-5 overflow-y-auto bg-slate-950 p-6 text-slate-100">
@@ -38,7 +41,7 @@ export function FailedSalesSection({ employeeView = false }: { employeeView?: bo
           <h1 className="flex items-center gap-2 text-2xl font-bold text-white"><Flag className="h-6 w-6 text-rose-400" /> Failed Sales</h1>
           <p className="text-sm text-slate-400">Review sales that were failed or charged back.</p>
         </div>
-        <button onClick={() => downloadCsv(filtered)} className="flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white"><Download className="h-4 w-4" />Export CSV</button>
+        <button onClick={() => downloadCsv(filtered, employeeView)} className="flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white"><Download className="h-4 w-4" />Export CSV</button>
       </header>
       <div className="flex flex-wrap items-end gap-2 rounded-xl border border-slate-800 bg-slate-900/70 p-3">
         <label className="text-[11px] text-slate-400">Closed by<select value={filters.employee} onChange={(event) => setFilters({ ...filters, employee: event.target.value })} className={`${input} ml-1`}><option value="">Everyone</option>{closedByOptions.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
@@ -53,9 +56,9 @@ export function FailedSalesSection({ employeeView = false }: { employeeView?: bo
         <table className="w-full text-left text-xs text-slate-300">
           <thead className="bg-slate-900 text-slate-400"><tr><th className="p-3">Customer</th><th className="p-3">Amount</th><th className="p-3">Closed By</th><th className="p-3">Sale Date</th><th className="p-3">Failed Reason</th></tr></thead>
           <tbody className="divide-y divide-slate-800">
-            {filtered.map((sale) => (
+            {pageItems.map((sale) => (
               <tr key={sale._id}>
-                <td className="p-3 font-semibold text-white">{sale.name}<span className="block text-slate-500">{sale.country}</span></td>
+                <td className="p-3 font-semibold text-white">{employeeView ? maskSensitiveValue(sale.name) : sale.name}<span className="block text-slate-500">{sale.country}</span></td>
                 <td className="p-3 text-emerald-400">${Number(sale.finalAmount ?? sale.amount ?? 0).toLocaleString()}</td>
                 <td className="p-3">{sale.connectedBy}</td>
                 <td className="p-3">{sale.saleDate}</td>
@@ -64,13 +67,14 @@ export function FailedSalesSection({ employeeView = false }: { employeeView?: bo
             ))}
           </tbody>
         </table>
+        <Pagination page={page} totalPages={totalPages} total={total} setPage={setPage} />
       </div>
     </section>
   );
 }
 
-function downloadCsv(rows: ICompanySale[]) {
-  const csv = [['Customer', 'Country', 'System', 'Closed By', 'Date', 'Amount', 'Failed Reason'], ...rows.map((sale) => [sale.name, sale.country, sale.system, sale.connectedBy, sale.saleDate, String(sale.finalAmount ?? sale.amount ?? 0), sale.failedReason || 'N/A'])];
+function downloadCsv(rows: ICompanySale[], employeeView = false) {
+  const csv = [['Customer', 'Country', 'System', 'Closed By', 'Date', 'Amount', 'Failed Reason'], ...rows.map((sale) => [employeeView ? maskSensitiveValue(sale.name) : sale.name, sale.country, sale.system, sale.connectedBy, sale.saleDate, String(sale.finalAmount ?? sale.amount ?? 0), employeeView ? maskSensitiveValue(sale.failedReason) : (sale.failedReason || 'N/A')])];
   const text = csv.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(',')).join('\n');
   const link = document.createElement('a');
   link.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));

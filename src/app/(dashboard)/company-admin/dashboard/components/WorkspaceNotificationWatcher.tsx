@@ -115,25 +115,63 @@ export function WorkspaceNotificationWatcher({ dashboardPath, onMessage }: Works
       queryClient.refetchQueries({ queryKey: ['remoteSupport'] });
       queryClient.refetchQueries({ queryKey: ['leads'] });
       queryClient.refetchQueries({ queryKey: ['sales'] });
+      queryClient.refetchQueries({ queryKey: ['announcements'] });
+      queryClient.refetchQueries({ queryKey: ['leave'] });
+      queryClient.refetchQueries({ queryKey: ['attendance'] });
+      queryClient.refetchQueries({ queryKey: ['verification'] });
+      queryClient.refetchQueries({ queryKey: ['feedback'] });
     };
 
     const onSocketMessage = (message: ICompanyMessage) => {
-      if (!message?._id || message.isMine) return;
+      if (!message?._id) return;
       onMessageRef.current?.(message);
 
-      const notificationContent = getNotificationContent(message);
-      const title = notificationContent?.title || message.senderName || 'New workspace message';
-      const rawBody = notificationContent?.body || message.content;
-      const body = rawBody.length > 120 ? `${rawBody.slice(0, 117)}...` : rawBody;
+      if (!message.isMine) {
+        const notificationContent = getNotificationContent(message);
+        const title = notificationContent?.title || message.senderName || 'New workspace message';
+        const rawBody = notificationContent?.body || message.content;
+        const body = rawBody.length > 120 ? `${rawBody.slice(0, 117)}...` : rawBody;
 
-      toast.info(title, { description: body, duration: 5000 });
-      refreshDashboards();
+        toast.info(title, { description: body, duration: 5000 });
 
-      const key = `crm-msg-${message._id}`;
-      triggerDesktopNotification(title, body, key, `${dashboardPath}?section=chat&conversation=${message.conversationId || message.groupId || ''}`);
+        const key = `crm-msg-${message._id}`;
+        triggerDesktopNotification(title, body, key, `${dashboardPath}?section=chat&conversation=${message.conversationId || message.groupId || ''}`);
+      }
     };
 
     socket.on('message:new', onSocketMessage);
+
+    socket.on('announcement:created', (payload: any) => {
+      refreshDashboards();
+      const title = '📢 New Announcement';
+      const body = payload.title || payload.announcement?.title || 'A new company announcement has been posted.';
+      toast.info(title, { description: body });
+      triggerDesktopNotification(title, body, `ann-${payload._id || Date.now()}`, `${dashboardPath}?section=announcements`);
+    });
+
+    socket.on('notification:new', (payload: any) => {
+      refreshDashboards();
+      if (payload.title && payload.type !== 'announcement') {
+        toast.info(payload.title, { description: payload.message });
+      }
+    });
+
+    socket.on('leave:updated', (payload: any) => {
+      refreshDashboards();
+      const title = '📝 Leave Status Update';
+      const body = payload.leave?.status ? `Status changed to ${payload.leave.status}` : 'Leave records updated';
+      toast.info(title, { description: body });
+    });
+
+    socket.on('lead:created', () => refreshDashboards());
+    socket.on('lead:updated', () => refreshDashboards());
+    socket.on('lead:accepted', () => refreshDashboards());
+    socket.on('lead:deleted', () => refreshDashboards());
+    socket.on('sale:created', () => refreshDashboards());
+    socket.on('sale:updated', () => refreshDashboards());
+    socket.on('sale:deleted', () => refreshDashboards());
+    socket.on('verification:updated', () => refreshDashboards());
+    socket.on('feedback:updated', () => refreshDashboards());
 
     socket.on('support:created', (payload: any) => {
       refreshDashboards();
@@ -202,6 +240,18 @@ export function WorkspaceNotificationWatcher({ dashboardPath, onMessage }: Works
 
     return () => {
       socket.off('message:new', onSocketMessage);
+      socket.off('announcement:created');
+      socket.off('notification:new');
+      socket.off('leave:updated');
+      socket.off('lead:created');
+      socket.off('lead:updated');
+      socket.off('lead:accepted');
+      socket.off('lead:deleted');
+      socket.off('sale:created');
+      socket.off('sale:updated');
+      socket.off('sale:deleted');
+      socket.off('verification:updated');
+      socket.off('feedback:updated');
       socket.off('support:created');
       socket.off('support:accepted');
       socket.off('support:rejected');
