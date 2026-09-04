@@ -33,6 +33,7 @@ export interface ICompanyMessage {
   isMine?: boolean;
   isSeen?: boolean;
   isEdited?: boolean;
+  deletedForEveryone?: boolean;
   conversationId?: string;
 }
 
@@ -501,7 +502,7 @@ export const companyService = {
     return response.data;
   },
   updateMessage: async (messageId: string, content: string): Promise<ICompanyMessage> => (await api.patch(`/company/messages/${messageId}`, { content })).data.data,
-  deleteMessage: async (messageId: string) => (await api.delete(`/company/messages/${messageId}`)).data.data,
+  deleteMessage: async (messageId: string, deleteFor: 'ME' | 'EVERYONE') => (await api.delete(`/company/messages/${messageId}`, { data: { deleteFor } })).data.data,
 
   getLeads: async (): Promise<ICompanyLead[]> => (await api.get('/company/leads')).data.data,
   createLead: async (data: Omit<ICompanyLead, '_id'>): Promise<ICompanyLead> => (await api.post('/company/leads', data)).data.data,

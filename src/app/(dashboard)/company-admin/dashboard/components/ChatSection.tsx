@@ -115,8 +115,10 @@ export function ChatSection(props: ChatSectionProps) {
       setMessages((current) => current.map((item) => item._id === message._id ? { ...item, ...message } : item));
     });
 
-    socket.on('message:deleted', (message: { id: string }) => {
-      setMessages((current) => current.filter((item) => item._id !== message.id));
+    socket.on('message:deleted', (message: { id: string; deletedForEveryone?: boolean }) => {
+      setMessages((current) => message.deletedForEveryone
+        ? current.map((item) => item._id === message.id ? { ...item, content: '', deletedForEveryone: true, isEdited: false } : item)
+        : current.filter((item) => item._id !== message.id));
     });
 
     socket.on('message:read', (receipt: { messageIds: string[] }) => {
@@ -287,10 +289,12 @@ export function ChatSection(props: ChatSectionProps) {
     }
   };
 
-  const deleteMessage = async (messageId: string) => {
+  const deleteMessage = async (messageId: string, deleteFor: 'ME' | 'EVERYONE') => {
     try {
-      await companyService.deleteMessage(messageId);
-      setMessages((current) => current.filter((item) => item._id !== messageId));
+      await companyService.deleteMessage(messageId, deleteFor);
+      setMessages((current) => deleteFor === 'EVERYONE'
+        ? current.map((item) => item._id === messageId ? { ...item, content: '', deletedForEveryone: true, isEdited: false } : item)
+        : current.filter((item) => item._id !== messageId));
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Unable to delete message');
     }
@@ -452,7 +456,9 @@ export function ChatSection(props: ChatSectionProps) {
                         <p className="mb-1 text-[11px] font-bold text-emerald-400">{message.senderName || 'Workspace Member'}</p>
                       )}
 
-                      {editingId === message._id ? (
+                      {message.deletedForEveryone ? (
+                        <p className="italic text-slate-400">This message was deleted</p>
+                      ) : editingId === message._id ? (
                         <div className="flex gap-2">
                           <input autoFocus value={editingText} onChange={(e) => setEditingText(e.target.value)} className="rounded bg-slate-950 px-2 py-1 text-white text-xs" />
                           <button aria-label="Save" onClick={() => void editMessage(message._id)}><Check className="h-4 w-4 text-emerald-400" /></button>
@@ -536,7 +542,7 @@ export function ChatSection(props: ChatSectionProps) {
                             )}
                           </div>
 
-                          {message.isMine && (
+                          {message.isMine && !message.deletedForEveryone && (
                             <div className="absolute -right-2 -top-2">
                               <button aria-label="Options" onClick={() => setOpenMenuId((cur) => cur === message._id ? null : message._id)} className="rounded-full bg-slate-800 p-1 text-slate-300 shadow hover:bg-slate-700">
                                 <MoreVertical className="h-3 w-3" />
@@ -544,7 +550,8 @@ export function ChatSection(props: ChatSectionProps) {
                               {openMenuId === message._id && (
                                 <div className="absolute right-0 top-7 z-10 w-28 overflow-hidden rounded-lg border border-slate-700 bg-slate-900 py-1 text-xs shadow-xl">
                                   <button className="flex w-full items-center gap-2 px-3 py-2 text-slate-200 hover:bg-slate-800" onClick={() => { setEditingId(message._id); setEditingText(message.content); setOpenMenuId(null); }}><Pencil className="h-3 w-3" /> Edit</button>
-                                  <button className="flex w-full items-center gap-2 px-3 py-2 text-rose-300 hover:bg-slate-800" onClick={() => { setOpenMenuId(null); void deleteMessage(message._id); }}><Trash2 className="h-3 w-3" /> Delete</button>
+                                  <button className="flex w-full items-center gap-2 px-3 py-2 text-rose-300 hover:bg-slate-800" onClick={() => { setOpenMenuId(null); void deleteMessage(message._id, 'ME'); }}><Trash2 className="h-3 w-3" /> Delete for me</button>
+                                  <button className="flex w-full items-center gap-2 px-3 py-2 text-rose-300 hover:bg-slate-800" onClick={() => { setOpenMenuId(null); void deleteMessage(message._id, 'EVERYONE'); }}><Trash2 className="h-3 w-3" /> Delete for everyone</button>
                                 </div>
                               )}
                             </div>
