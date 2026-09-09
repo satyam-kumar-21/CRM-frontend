@@ -12,22 +12,25 @@ const formatTime = (value?: string) => value ? new Date(value).toLocaleString() 
 const employeeName = (record: IAttendanceRecord) => typeof record.employeeId === 'string' ? record.employeeId : `${record.employeeId.name} (${record.employeeId.employeeId})`;
 
 export function AttendanceSection({ readOnly = false }: AttendanceSectionProps) {
+  const today = getBusinessDateString(new Date());
   const [records, setRecords] = useState<IAttendanceRecord[]>([]);
   const [summary, setSummary] = useState<IAttendanceSummary | null>(null);
   const [employees, setEmployees] = useState<Array<{ _id: string; name: string; employeeId: string; role: string }>>([]);
   const [employeeId, setEmployeeId] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [from, setFrom] = useState(today);
+  const [to, setTo] = useState(today);
   const [month, setMonth] = useState('');
 
   const load = async () => {
     try {
       const selectedMonth = month || (from ? from.slice(0, 7) : '');
-      const isCurrentMonth = !!selectedMonth && selectedMonth === getBusinessDateString(new Date()).slice(0, 7);
+      const isCurrentMonth = !!selectedMonth && selectedMonth === today.slice(0, 7);
+      const effectiveFrom = month ? `${month}-01` : from || today;
+      const effectiveTo = month ? (isCurrentMonth ? today : getBusinessMonthEndString(month)) : to || today;
       const attendanceResponse = await companyService.getAttendance({
         employeeId: employeeId || undefined,
-        from: month ? `${month}-01` : from || undefined,
-        to: month ? (isCurrentMonth ? getBusinessDateString(new Date()) : getBusinessMonthEndString(month)) : to || undefined,
+        from: effectiveFrom,
+        to: effectiveTo,
       });
       const nextRecords = Array.isArray(attendanceResponse) ? attendanceResponse : (attendanceResponse.records ?? []);
       setRecords(nextRecords);
@@ -72,7 +75,7 @@ export function AttendanceSection({ readOnly = false }: AttendanceSectionProps) 
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [records]);
 
-  const monthCaption = month ? `${month} (1 to ${new Date().getDate()} working days)` : from || to ? `Current filtered range` : `Current month`;
+  const monthCaption = month ? `${month} (1 to ${new Date().getDate()} working days)` : from || to ? 'Selected day' : 'Today';
   const uniqueHolidayDates = new Set(records.filter((record) => record.status === 'HOLIDAY').map((record) => new Date(record.date).toISOString().slice(0, 10)));
   const totalHolidaysThisMonth = summary?.totalHoliday ?? uniqueHolidayDates.size;
 
